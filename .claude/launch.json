@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "a2-editor",
+      "runtimeExecutable": "/usr/local/bin/node",
+      "runtimeArgs": ["korg_a2/node_modules/vite/bin/vite.js", "korg_a2", "--config", "korg_a2/vite.config.ts", "--port", "5178", "--strictPort"],
+      "port": 5178
+    },
+    {
+      "name": "jmp1-editor",
+      "runtimeExecutable": "/usr/local/bin/node",
+      "runtimeArgs": ["marshall_jmp1/node_modules/vite/bin/vite.js", "marshall_jmp1", "--config", "marshall_jmp1/vite.config.ts", "--port", "5179", "--strictPort"],
+      "port": 5179
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "targets": {
+    "release": {
+      "outFile": "public/a2codec.wasm",
+      "textFile": "public/a2codec.wat",
+      "optimizeLevel": 3,
+      "shrinkLevel": 1,
+      "noAssert": true,
+      "runtime": "stub"
+    }
+  }
+}

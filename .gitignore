@@ -1,0 +1,29 @@
+# Dependencies and build output (every unit folder)
+node_modules/
+dist/
+.vite/
+
+# Generated WebAssembly codecs (rebuilt by `npm run asbuild`)
+*/public/*.wasm
+*/public/*.wat
+
+# Logs and caches
+*.log
+npm-debug.log*
+.npm/
+.eslintcache
+*.tsbuildinfo
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Claude Code: keep the shared launch.json, ignore personal settings
+.claude/settings.local.json
+
+# Local environment
+.env
+.env.*

@@ -1,0 +1,21 @@
+{
+  "name": "marshall-jmp1-editor",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Web MIDI editor/librarian for the Marshall JMP-1 valve MIDI pre-amp",
+  "license": "AGPL-3.0-or-later",
+  "author": "Alessandro Pilotti",
+  "scripts": {
+    "asbuild": "asc assembly/index.ts --config asconfig.json --target release",
+    "dev": "npm run asbuild && vite",
+    "build": "npm run asbuild && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "npm run asbuild && node --experimental-strip-types --no-warnings tests/run.ts"
+  },
+  "devDependencies": {
+    "assemblyscript": "0.28.20",
+    "typescript": "5.9.3",
+    "vite": "7.3.8"
+  }
+}

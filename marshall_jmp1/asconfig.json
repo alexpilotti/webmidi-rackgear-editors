@@ -1,0 +1,12 @@
+{
+  "targets": {
+    "release": {
+      "outFile": "public/jmp1codec.wasm",
+      "textFile": "public/jmp1codec.wat",
+      "optimizeLevel": 3,
+      "shrinkLevel": 1,
+      "noAssert": true,
+      "runtime": "stub"
+    }
+  }
+}
