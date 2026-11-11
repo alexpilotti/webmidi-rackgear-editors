@@ -9,7 +9,7 @@ import { A2Midi } from './midi.ts';
 import { NAME_LENGTH, Program } from './program.ts';
 import {
   buildAllDump, buildProgramDump, buildRequest, buildWriteRequest, decodeAllDump,
-  decodeProgramDump, FN_NAMES, Fn, hex, parseMessage, PROGRAM_COUNT, splitSysex,
+  CHAIN_DATA_SIZE, decodeProgramDump, FN_NAMES, Fn, hex, parseMessage, PROGRAM_COUNT, PROGRAM_SIZE, splitSysex,
   type A2Message,
 } from './sysex.ts';
 import { h, Knob, Lcd, SevenSeg } from './ui/components.ts';
@@ -29,6 +29,9 @@ const RAW_GROUP: EffectGroup = {
 };
 
 const pad = (s: string | number, n: number) => String(s).padStart(n, '0');
+const toB64 = (b: Uint8Array) => btoa(String.fromCharCode(...b));
+const fromB64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const MEMORY_KEY = 'a2-memory';
 
 export class App {
   // ---- data
@@ -76,6 +79,8 @@ export class App {
   constructor(private root: HTMLElement, private codec: Codec) {
     this.build();
     this.restoreSettings();
+    this.restoreMemory();
+    window.addEventListener('pagehide', () => this.persist()); // don't lose the last 300 ms
     this.wireMidi();
     this.wireKeyboard();
     this.flash('   KORG A2  PERFORMANCE SIGNAL PROCESSOR', 1600);
@@ -591,6 +596,61 @@ export class App {
     } catch { /* storage unavailable */ }
   }
 
+  // =========================================================================
+  // Editor memory: kept in this browser across reloads, never sent anywhere.
+
+  private persistTimer = 0;
+
+  private persistSoon(): void {
+    clearTimeout(this.persistTimer);
+    this.persistTimer = window.setTimeout(() => this.persist(), 300);
+  }
+
+  private persist(): void {
+    const join = (ps: Program[]) => {
+      const out = new Uint8Array(PROGRAM_COUNT * PROGRAM_SIZE);
+      ps.forEach((p, i) => out.set(p.data, i * PROGRAM_SIZE));
+      return toB64(out);
+    };
+    try {
+      // Nothing worth keeping until data arrived or a placeholder was edited.
+      if (!this.hasData && !this.programs.some((_, i) => this.isDirty(i))) {
+        localStorage.removeItem(MEMORY_KEY);
+        return;
+      }
+      localStorage.setItem(MEMORY_KEY, JSON.stringify({
+        v: 1,
+        programs: join(this.programs),
+        originals: join(this.originals),
+        chainData: this.chainData ? toB64(this.chainData) : null,
+        current: this.current,
+        hasData: this.hasData,
+      }));
+    } catch { /* storage unavailable or full */ }
+  }
+
+  private restoreMemory(): void {
+    try {
+      const m = JSON.parse(localStorage.getItem(MEMORY_KEY) ?? 'null');
+      if (m?.v !== 1) return;
+      const programs = fromB64(m.programs), originals = fromB64(m.originals);
+      const chainData = m.chainData ? fromB64(m.chainData) : null;
+      const size = PROGRAM_COUNT * PROGRAM_SIZE;
+      if (programs.length !== size || originals.length !== size) return;
+      if (chainData && chainData.length !== CHAIN_DATA_SIZE) return;
+      const split = (b: Uint8Array) =>
+        Array.from({ length: PROGRAM_COUNT }, (_, i) => new Program(b.subarray(i * PROGRAM_SIZE, (i + 1) * PROGRAM_SIZE)));
+      this.programs = split(programs);
+      this.originals = split(originals);
+      this.chainData = chainData;
+      this.current = Math.max(0, Math.min(PROGRAM_COUNT - 1, Number(m.current) || 0));
+      this.hasData = !!m.hasData;
+      if (this.hasData) {
+        this.status('Programs restored from this browser; they may differ from the A2. GET ALL to refresh.');
+      }
+    } catch { /* ignore a corrupt or unreadable copy */ }
+  }
+
   private restoreSettings(): void {
     const s = this.settings();
     this.channel = s.channel ?? 0;
@@ -873,6 +933,7 @@ export class App {
     this.renderStrip();
     this.renderLibrary();
     this.renderMidiUnit();
+    this.persistSoon();
   }
 
   private renderLeds(): void {

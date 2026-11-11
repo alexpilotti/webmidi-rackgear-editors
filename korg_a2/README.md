@@ -12,6 +12,11 @@ the real A2.
   master volume and threshold. Changes go live to the A2 edit buffer (`40`).
   WRITE stores them (`11`), including copying a program to another number.
 - **.syx files**: load or save the whole bank or a single program. You can also drop a file anywhere on the page.
+- **Survives reloads**: the programs, including unsent edits, are kept in this
+  browser's `localStorage` (`a2-memory`) and restored when the page reloads.
+  Nothing is sent to the A2 on reload. The restored copy may differ from the
+  unit, so use GET ALL to refresh it. The copy stays in one browser profile and
+  one site address; use `.syx` files to move programs elsewhere.
 
 ## Running
 
