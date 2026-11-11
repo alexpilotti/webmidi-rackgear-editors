@@ -9,7 +9,7 @@ the real A2.
   The UI is plain TypeScript, built with Vite.
 - **Lists all patches**: GET ALL requests the 100 internal programs (SysEx `1C` → `4C`).
 - **Edits them**: chain, variations, effect on/off, all effect parameters, name,
-  master volume and threshold. Changes go live to the A2 edit buffer (`40`).
+  master volume and threshold. With **LIVE EDIT** ticked, changes go straight to the A2 edit buffer (`40`); it is off each time the page loads, so use SEND EDIT or tick it to hear edits.
   WRITE stores them (`11`), including copying a program to another number.
 - **.syx files**: load or save the whole bank or a single program. You can also drop a file anywhere on the page.
 - **Survives reloads**: the programs, including unsent edits, are kept in this

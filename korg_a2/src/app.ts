@@ -52,7 +52,8 @@ export class App {
   power = true;
   utilCursor = 0;
   channel = 0;
-  liveSend = true;
+  /** LIVE EDIT: off at every page load, like the JMP-1 editor's LIVE (not saved). */
+  liveSend = false;
   private message: { text: string; until: number } | null = null;
   private liveTimer = 0;
   private busy = false;
@@ -577,7 +578,7 @@ export class App {
   // =========================================================================
   // Settings
 
-  private settings(): { channel?: number; input?: string; output?: string; live?: boolean } {
+  private settings(): { channel?: number; input?: string; output?: string } {
     try {
       return JSON.parse(localStorage.getItem('a2-editor') ?? '{}');
     } catch {
@@ -591,7 +592,6 @@ export class App {
         channel: this.channel,
         input: this.inSel.selectedOptions[0]?.text,
         output: this.outSel.selectedOptions[0]?.text,
-        live: this.liveSend,
       }));
     } catch { /* storage unavailable */ }
   }
@@ -654,7 +654,6 @@ export class App {
   private restoreSettings(): void {
     const s = this.settings();
     this.channel = s.channel ?? 0;
-    this.liveSend = s.live ?? true;
     this.chSel.value = String(this.channel);
   }
 
@@ -813,9 +812,8 @@ export class App {
     this.chSel.addEventListener('change', () => { this.channel = Number(this.chSel.value); this.saveSettings(); this.render(); });
 
     const live = h('input', { type: 'checkbox' });
-    live.checked = true;
-    live.addEventListener('change', () => { this.liveSend = live.checked; this.saveSettings(); });
-    queueMicrotask(() => { live.checked = this.liveSend; });
+    live.checked = this.liveSend;
+    live.addEventListener('change', () => { this.liveSend = live.checked; });
 
     const btn = (id: string, label: string, fn: () => void, title: string) => {
       const b = h('button', { class: 'rack-btn', title, text: label });
