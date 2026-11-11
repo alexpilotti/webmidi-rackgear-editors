@@ -13,7 +13,12 @@ rack units. Each app lists all of the unit's patches and lets the user edit them
   - `LICENSE`
   - `.gitignore`
   - the `.claude/` tooling config
+  - `.github/`: the GitHub Pages workflow (`workflows/pages.yml`) and the
+    landing page (`pages/index.html`) that links to every editor
 - A new unit adds a row to the root README's table, and gets its own README.
+  It also needs an entry in the `matrix.app` list of
+  `.github/workflows/pages.yml` and a card on `.github/pages/index.html`,
+  including its brand in that page's footer.
 
 | Folder | Unit | Dev port |
 |---|---|---|

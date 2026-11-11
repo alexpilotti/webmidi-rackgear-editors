@@ -1,0 +1,84 @@
+# Copyright (C) 2026 Alessandro Pilotti
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Builds every editor and publishes them to GitHub Pages:
+#   /                landing page (.github/pages/index.html)
+#   /korg_a2/        Korg A2 editor
+#   /marshall_jmp1/  Marshall JMP-1 editor
+# One-time setup: Settings → Pages → Source: "GitHub Actions".
+
+name: Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [korg_a2, marshall_jmp1]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+      - name: Install
+        run: npm ci
+        working-directory: ${{ matrix.app }}
+      - name: Test
+        run: npm test
+        working-directory: ${{ matrix.app }}
+      - name: Build
+        run: npm run build
+        working-directory: ${{ matrix.app }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.app }}
+          path: ${{ matrix.app }}/dist
+          if-no-files-found: error
+
+  assemble:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          path: artifacts
+      - name: Assemble site
+        run: |
+          mkdir -p site
+          cp .github/pages/index.html site/
+          for d in artifacts/dist-*; do
+            cp -r "$d" "site/${d#artifacts/dist-}"
+          done
+          touch site/.nojekyll
+          find site -maxdepth 2 | sort
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: assemble
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

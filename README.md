@@ -9,6 +9,12 @@ screen is laid out like the unit's own front panel.
 | [`korg_a2/`](korg_a2/) | Korg A2 Performance Signal Processor | [korg_a2/README.md](korg_a2/README.md) |
 | [`marshall_jmp1/`](marshall_jmp1/) | Marshall JMP-1 valve MIDI pre-amp | [marshall_jmp1/README.md](marshall_jmp1/README.md) |
 
+## Use them online
+
+The editors are published on GitHub Pages:
+<https://alexpilotti.github.io/webmidi-rackgear-editors/>. Every push to
+`master` rebuilds and redeploys them (`.github/workflows/pages.yml`).
+
 ## How the editors are built
 
 - **TypeScript + WebAssembly**: each unit's SysEx codec is written in
