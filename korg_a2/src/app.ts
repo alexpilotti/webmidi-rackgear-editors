@@ -37,6 +37,7 @@ export class App {
   chainData: Uint8Array | null = null;
   current = 0;
   hasData = false;
+  private noDataEl = h('div', { class: 'no-data', text: 'NO DATA FROM THE A2 YET · PLACEHOLDER PROGRAMS · USE GET ALL OR LOAD .SYX' });
 
   // ---- panel state
   mode: Mode = 'play';
@@ -416,6 +417,12 @@ export class App {
       this.status(`${label}: done.`);
     } catch (e) {
       this.error(e as Error);
+      // Keep the failure on the LCD until the next panel action, so it can't be missed.
+      const err = e as Error;
+      this.message = {
+        text: err.name === 'TimeoutError' ? '     NO REPLY FROM THE A2 - CHECK MIDI' : `     ${err.message.toUpperCase().slice(0, 35)}`,
+        until: Infinity,
+      };
     } finally {
       this.busy = false;
       this.render();
@@ -424,8 +431,10 @@ export class App {
 
   async receiveAll(): Promise<void> {
     await this.task('Receiving all programs (≈6 s)', async () => {
-      this.flash('     EXCLUSIVE DUMP RECEIVING...', 8000);
-      const wait = this.midi.waitFor([Fn.ALL_DUMP, Fn.DATA_LOAD_ERROR], 15000, this.channel);
+      this.flash('     EXCLUSIVE DUMP RECEIVING...', 10000);
+      // 16,684 bytes at 3125 bytes/s take 5.3 s; Web MIDI delivers SysEx only when complete.
+      const wait = this.midi.waitFor([Fn.ALL_DUMP, Fn.DATA_LOAD_ERROR], 10000, this.channel);
+      wait.catch(() => {}); // awaited below; avoids an unhandled rejection if send() throws
       this.midi.send(buildRequest(this.channel, Fn.ALL_DUMP_REQUEST));
       const m = await wait;
       if (m.fn !== Fn.ALL_DUMP) throw new Error('A2 replied DATA LOAD ERROR');
@@ -437,6 +446,7 @@ export class App {
   async receiveCurrent(): Promise<void> {
     await this.task('Receiving edit buffer', async () => {
       const wait = this.midi.waitFor([Fn.PROGRAM_DUMP, Fn.DATA_LOAD_ERROR], 4000, this.channel);
+      wait.catch(() => {}); // awaited below; avoids an unhandled rejection if send() throws
       this.midi.send(buildRequest(this.channel, Fn.PROGRAM_DUMP_REQUEST));
       const m = await wait;
       if (m.fn !== Fn.PROGRAM_DUMP) throw new Error('A2 replied DATA LOAD ERROR');
@@ -453,6 +463,7 @@ export class App {
     await this.task('Sending all programs', async () => {
       this.flash('     EXCLUSIVE DUMP SENDING...', 8000);
       const wait = this.midi.waitFor([Fn.DATA_LOAD_COMPLETED, Fn.DATA_LOAD_ERROR, Fn.FORMAT_ERROR], 20000, this.channel);
+      wait.catch(() => {}); // awaited below; avoids an unhandled rejection if send() throws
       this.midi.send(buildAllDump(this.codec, this.channel, { chainData: this.chainData!, programs: this.programs.map((p) => p.data) }));
       const m = await wait;
       if (m.fn !== Fn.DATA_LOAD_COMPLETED) throw new Error(`A2 replied ${FN_NAMES[m.fn]}`);
@@ -796,7 +807,8 @@ export class App {
       h('div', { class: 'face' },
         h('div', { class: 'lib-head' },
           h('div', { class: 'midi-title', text: 'PROGRAMS' }),
-          h('div', { class: 'silk', text: 'INTERNAL 001–100 · CLICK TO SELECT · DOUBLE-CLICK TO EDIT · * = EDITED, NOT WRITTEN' })),
+          h('div', { class: 'silk', text: 'INTERNAL 001–100 · CLICK TO SELECT · DOUBLE-CLICK TO EDIT · * = EDITED, NOT WRITTEN' }),
+          this.noDataEl),
         list),
       this.ear());
   }
@@ -1001,6 +1013,9 @@ export class App {
   }
 
   private renderLibrary(): void {
+    // Until a dump or file arrives the list holds INIT placeholders, not the A2's programs.
+    this.noDataEl.hidden = this.hasData;
+    this.libRows[0]?.parentElement?.classList.toggle('placeholder', !this.hasData);
     this.programs.forEach((p, i) => {
       const row = this.libRows[i];
       const dirty = this.isDirty(i);

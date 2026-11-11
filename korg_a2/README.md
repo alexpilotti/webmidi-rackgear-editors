@@ -89,6 +89,7 @@ compare the editor with the A2's own LCD, check them and adjust
 5. **All‑dump "f" byte**: NOTE 6 mentions an `f` selector that the message table
    omits. Incoming dumps are accepted with or without it. Outgoing dumps omit it.
 6. Card chains (`0x80–0x89`) aren't defined in the docs, so their parameters appear as raw bytes.
+7. **Reply time-outs**: GET ALL waits 10 s and GET EDIT 4 s. An all-dump is 16,684 bytes, which takes about 5.3 s at MIDI speed. These limits assume the A2 starts replying within about 4.5 s. If GET ALL times out on a connected unit, raise the limits in `src/app.ts`.
 
 Bytes the editor doesn't understand are kept exactly as received. A received
 program that is sent back unedited therefore stays byte‑identical.

@@ -103,7 +103,9 @@ export class A2Midi {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         off();
-        reject(new Error('Timed out waiting for the A2 — check cables, MIDI channel and that EXCLUSIVE is ON (UTILITY → MIDI).'));
+        const err = new Error('Timed out waiting for the A2 — check cables, MIDI channel and that EXCLUSIVE is ON (UTILITY → MIDI).');
+        err.name = 'TimeoutError';
+        reject(err);
       }, timeoutMs);
       const off = this.on((m) => {
         if (!fns.includes(m.fn)) return;
