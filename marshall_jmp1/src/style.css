@@ -429,3 +429,6 @@ button { font: inherit; color: inherit; }
   line-height: 1.5;
   color: #8d8d88;
 }
+.disclaimer a { color: inherit; text-decoration: underline; }
+.disclaimer a:hover { color: #c8c8c2; }
+
