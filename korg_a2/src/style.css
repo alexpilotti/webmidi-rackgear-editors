@@ -493,3 +493,22 @@ button { font: inherit; color: inherit; }
 .disclaimer a { color: inherit; text-decoration: underline; }
 .disclaimer a:hover { color: #c8c8c2; }
 
+/* ------------------------------------------------------------------ site nav */
+
+.site-nav { padding: 0 16px 16px; text-align: center; }
+.home-btn {
+  display: inline-block;
+  padding: 6px 14px;
+  border: 1px solid #55565a;
+  border-radius: 3px;
+  background: linear-gradient(#4a4b4f, #2e2f32);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 1px 2px rgba(0, 0, 0, 0.5);
+  color: #e6e6e2;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+}
+.home-btn:hover { background: linear-gradient(#5a5b60, #38393d); border-color: #8fbde6; }
+.home-btn:focus-visible { outline: 2px solid #8fbde6; outline-offset: 2px; }
+.home-btn:active { box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6); }
