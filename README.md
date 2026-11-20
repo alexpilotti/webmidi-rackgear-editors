@@ -8,6 +8,7 @@ screen is laid out like the unit's own front panel.
 |---|---|---|
 | [`korg_a2/`](korg_a2/) | Korg A2 Performance Signal Processor | [korg_a2/README.md](korg_a2/README.md) |
 | [`marshall_jmp1/`](marshall_jmp1/) | Marshall JMP-1 valve MIDI pre-amp | [marshall_jmp1/README.md](marshall_jmp1/README.md) |
+| [`tc_gforce/`](tc_gforce/) | TC Electronic G-Force guitar effects processor | [tc_gforce/README.md](tc_gforce/README.md) |
 
 ## Use them online
 
@@ -28,7 +29,7 @@ The editors are published on GitHub Pages:
 ## Running an editor
 
 ```bash
-cd korg_a2          # or marshall_jmp1
+cd korg_a2          # or marshall_jmp1, tc_gforce
 npm install
 npm run dev         # http://localhost:5173
 npm test            # codec / protocol tests (Node 22+)
@@ -47,15 +48,18 @@ later** (`AGPL-3.0-or-later`); see [LICENSE](LICENSE). If you run a modified
 version as a network service, you must offer its source to its users.
 
 The manufacturer documents in the `docs/` folders are not covered by this
-license. These are the Korg A2 manuals and the Marshall JMP-1 handbook, which
-remain the property of their owners and are included for reference only.
+license. These are the Korg A2 manuals, the Marshall JMP-1 handbook and the
+TC Electronic G-Force manual, which remain the property of their owners and
+are included for reference only. The G-Force dumps in
+`tc_gforce/docs/samples/` were recorded from a real unit.
 
 ## Trademarks
 
-Korg is a trademark of Korg Inc., and Marshall is a trademark of Marshall
-Amplification plc. Product names such as A2 and JMP-1 are used only to
+Korg is a trademark of Korg Inc., Marshall is a trademark of Marshall
+Amplification plc, and TC Electronic is a trademark of MUSIC Tribe Global
+Brands Ltd. Product names such as A2, JMP-1 and G-Force are used only to
 identify the hardware these editors work with.
 
-This project is not affiliated with, endorsed by, or sponsored by Korg or
-Marshall. The on-screen panels are recreations for usability and use no
+This project is not affiliated with, endorsed by, or sponsored by Korg,
+Marshall, TC Electronic or MUSIC Tribe. The on-screen panels are recreations for usability and use no
 official logos or artwork.

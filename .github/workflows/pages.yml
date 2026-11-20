@@ -5,6 +5,7 @@
 #   /                landing page (.github/pages/index.html)
 #   /korg_a2/        Korg A2 editor
 #   /marshall_jmp1/  Marshall JMP-1 editor
+#   /tc_gforce/      TC Electronic G-Force editor
 # One-time setup: Settings → Pages → Source: "GitHub Actions".
 
 name: Pages
@@ -28,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        app: [korg_a2, marshall_jmp1]
+        app: [korg_a2, marshall_jmp1, tc_gforce]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -1,0 +1,12 @@
+{
+  "targets": {
+    "release": {
+      "outFile": "public/gforcecodec.wasm",
+      "textFile": "public/gforcecodec.wat",
+      "optimizeLevel": 3,
+      "shrinkLevel": 1,
+      "noAssert": true,
+      "runtime": "stub"
+    }
+  }
+}

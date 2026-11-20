@@ -24,14 +24,15 @@ rack units. Each app lists all of the unit's patches and lets the user edit them
 |---|---|---|
 | `korg_a2/` | Korg A2 Performance Signal Processor | 5178 |
 | `marshall_jmp1/` | Marshall JMP-1 valve MIDI pre-amp | 5179 |
+| `tc_gforce/` | TC Electronic G-Force guitar effects processor | 5181 |
 
 ## Shared conventions
 
-Both apps use the same stack and structure:
+All apps use the same stack and structure:
 
 - **Stack:** AssemblyScript for the SysEx codec (`assembly/index.ts` →
   `public/*.wasm`, no imports, gitignored build output) and Vite + TypeScript
-  for the UI. Neither app uses a UI framework.
+  for the UI. No app uses a UI framework.
 - **Layout:** `src/codec.ts` loads the wasm; `src/midi.ts` is the Web MIDI
   transport; `src/app.ts` holds panel modes, MIDI flows, librarian and
   rendering; `src/ui/components.ts` holds knobs, keys and displays; all styling
@@ -53,14 +54,15 @@ npx tsc --noEmit
 npm run build
 ```
 
-Rules for both apps:
+Rules for all apps:
 
 - **Unknown bytes are preserved.** Models edit bytes in place. Data sent back
   unedited must stay byte-identical.
 - **Guesses are documented.** Anything not stated by the docs is listed under
   "Assumptions to verify on hardware" in the app's README.
 - **No hardware tests yet.** Everything has been tested against simulated
-  units, not hardware. Don't claim hardware behaviour is verified.
+  units, not hardware (the JMP-1 and G-Force tests do use dumps recorded from
+  real units). Don't claim hardware behaviour is verified.
 - **Rack look.** The UI is a 19" rack: the unit's front panel, a value strip, a
   MIDI unit and lists. It is laid out at a fixed 1520px width and scaled with
   CSS `zoom`. Text uses the Helvetica font stack. Hardware LEDs keep their real
@@ -75,7 +77,7 @@ Rules for both apps:
   - Claim only marks known to be registered, such as the brand name.
     Model numbers (A2, JMP-1) are not claimed; they are only "used to identify
     the hardware".
-- **Simulating a unit.** `window.a2` / `window.jmp1` expose the `App`. To test
+- **Simulating a unit.** `window.a2` / `window.jmp1` / `window.gforce` expose the `App`. To test
   MIDI flows, replace `app.midi.output` with a fake whose `send()` replies
   through `app.midi.handle(bytes)`. For the JMP-1, also set `app.midi.input` so
   RECEIVE DUMP is enabled. Tests in the browser pane leave data in its
@@ -171,3 +173,49 @@ User docs are in `marshall_jmp1/README.md`.
   - `In nn` / `to nn` / `ot nn` for MAP, where a decimal point marks 100–127
   - `Ch nn` / `Chon` for the MIDI channel
   - `--` while waiting for a dump, and `Er` on a bad dump
+
+---
+
+## TC Electronic G-Force (`tc_gforce/`)
+
+User docs are in `tc_gforce/README.md`.
+
+| Path (in `tc_gforce/`) | Role |
+|---|---|
+| `assembly/index.ts` | Block codec: nibbles, checksum, header count → `public/gforcecodec.wasm` |
+| `src/codec.ts` | Dump framing: header + 137-byte blocks ↔ byte stream |
+| `src/model.ts` | `Bank` (magic, 100 stored flags, 614-byte records), `Preset`, decoded `PARAMS` |
+| `src/midi.ts` | `GfMidi`: raw SysEx listener, paced sending with Web MIDI timestamps |
+| `src/ui/components.ts` | `Knob` (Parameter/Value wheels), `PanelKey` (key + LED), `GraphicLcd` (dot framebuffer, 5×7 font), `Billboard` (14×5 LEDs) |
+| `src/ui/screens.ts` | LCD pages drawn like the unit's: Recall, Store, parameter list, Utility |
+| `src/rom.ts` | Names of the 225 ROM presets, from the manual's preset list |
+| `docs/G-Force_Manual_EN.pdf` | TC owner's manual (a ManualsLib copy); has text, so `pdftotext` works. MIDI setup and bank select: printed pp.21–22; Recall: p.17; the blocks: pp.33–47 |
+| `docs/SYSEX_FORMAT.md` | The dump format, as recovered from real dumps |
+| `docs/samples/*.syx` | User bank dumps from a real unit; the tests check against them |
+
+### G-Force rules
+
+- **The format is reverse-engineered, not documented.** TC never published it.
+  Every finding comes from diffing dumps in `docs/samples/` that differ by one
+  known change. Keep `docs/SYSEX_FORMAT.md`, `PARAMS` in `src/model.ts` and
+  the tests in sync, and add the sample pair for each new parameter.
+- **Only the whole User bank moves over MIDI.** The unit sends it with
+  Utility → User Bank to MIDI, and receives it after Utility → MIDI to User
+  Bank is armed. No request, single-preset or parameter message is known, so
+  there is no live editing.
+- **Slots after the last stored one are not in the dump**; empty slots below
+  it are 614 zero bytes. `Bank.stream()` rebuilds the dump and must stay
+  byte-identical for unedited banks.
+- **Undecoded bytes are edited raw** (PRESET DATA grid), never guessed at.
+- **Use the local manual.** Read `docs/G-Force_Manual_EN.pdf` instead of
+  fetching the manual online.
+- **Panel look.** Follow the manual's front panel drawing (pp.8–9 of the
+  printed manual): power, IN/OUT knobs, brand, card slot; the window with
+  input meters, graphic LCD and LED dot-matrix billboard with EDITED / MIDI IN
+  / PEDAL / OVERFLOW; EFFECTS CONTROL (BYPASS, TUNER, TEMPO and the nine block
+  keys); CONTROL (RECALL, STORE, EFFECTS, MOD, I/O SETUP, UTILITY); arrows,
+  EXIT, ENTER and the PARAMETER / VALUE wheels.
+- **LCD.** A yellow-green graphic LCD with dark dots (`--lcd-*`), drawn dot by
+  dot. Recall shows SELECT / BANK / PRESET boxes and the name in a big font;
+  parameter pages show a framed title, a PARAM tab, a ▶ list and a bar graph.
+  The billboard is a 14×5 grid of red LEDs showing the preset number.
