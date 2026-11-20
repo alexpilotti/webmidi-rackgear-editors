@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Names of the 225 ROM presets, from the Preset List of the owner's manual
-// (docs/G-Force_Manual_EN.pdf, printed pp.54–61). ROM n is ROM_NAMES[n - 1].
+// (docs/G-Force_Manual_EN.pdf, printed pp.57–61). ROM n is ROM_NAMES[n - 1].
 
 export const ROM_NAMES: readonly string[] = [
   "Mono Reverb", "Mono Chorus", "Mono Dyn Delay", "Mono Harmony C-Maj",

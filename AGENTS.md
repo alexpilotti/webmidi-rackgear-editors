@@ -189,7 +189,7 @@ User docs are in `tc_gforce/README.md`.
 | `src/ui/components.ts` | `Knob` (Parameter/Value wheels), `PanelKey` (key + LED), `GraphicLcd` (dot framebuffer, 5×7 font), `Billboard` (14×5 LEDs) |
 | `src/ui/screens.ts` | LCD pages drawn like the unit's: Recall, Store, parameter list, Utility |
 | `src/rom.ts` | Names of the 225 ROM presets, from the manual's preset list |
-| `docs/G-Force_Manual_EN.pdf` | TC owner's manual (a ManualsLib copy); has text, so `pdftotext` works. MIDI setup and bank select: printed pp.21–22; Recall: p.17; the blocks: pp.33–47 |
+| `docs/G-Force_Manual_EN.pdf` | TC owner's manual (a ManualsLib copy); has text, so `pdftotext` works. Page numbers here are the printed ones (PDF page = printed + 2): front panel pp.8–9; Recall p.17; MIDI setup and bank select pp.21–22; the blocks pp.33–51; MIDI implementation chart p.55; preset list pp.57–61 |
 | `docs/SYSEX_FORMAT.md` | The dump format, as recovered from real dumps |
 | `docs/samples/*.syx` | User bank dumps from a real unit; the tests check against them |
 
