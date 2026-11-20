@@ -328,6 +328,12 @@ export class NumberField {
     return this.value;
   }
 
+  /** Grey out the field and ignore input. */
+  setDisabled(off: boolean): void {
+    this.el.classList.toggle('disabled', off);
+    for (const c of this.el.querySelectorAll('input, button')) (c as HTMLInputElement | HTMLButtonElement).disabled = off;
+  }
+
   private clamp(v: number): number {
     return Math.max(this.o.min, Math.min(this.o.max, Math.round(v)));
   }

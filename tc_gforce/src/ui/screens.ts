@@ -24,14 +24,17 @@ export function presetPage(lcd: GraphicLcd, o: {
   bank: string;
   /** Label of the third BANK row (the card bank shown). */
   cardLabel: string;
+  /** Field under the cursor: 0 = left box (SELECT), 1 = BANK, 2 = PRESET. Its label is inverted. */
+  focus: number;
   number: number;
   name: string;
 }): void {
   lcd.clear();
   title(lcd, o.title);
-  lcd.text(2, 23, o.leftLabel);
-  lcd.text(98, 23, 'BANK:');
-  lcd.inverse(140, 22, 99, 'PRESET:');
+  const label = (x: number, w: number, t: string, f: number) => (o.focus === f ? lcd.inverse(x, 22, w, t) : lcd.text(x + 2, 23, t));
+  label(0, 92, o.leftLabel, 0);
+  label(96, 41, 'BANK:', 1);
+  label(140, 99, 'PRESET:', 2);
 
   // Left box (SELECT grid on Recall).
   o.left(lcd, 2, 33, 92, 46);
@@ -169,4 +172,57 @@ export function messageBox(lcd: GraphicLcd, text: string): void {
   lcd.fill(12, y, 216, h);
   lcd.frame(14, y + 2, 212, h - 4, false);
   shown.forEach((l, i) => lcd.text(120 - GraphicLcd.measure(l) / 2, y + 6 + i * 10, l, { on: false }));
+}
+
+export interface MenuRow {
+  label: string;
+  value?: string;
+  header?: boolean;
+}
+
+/**
+ * List page with a big title and page tabs, as on the unit's I/O Setup and
+ * Utility displays: tabs top right (the current one inverted), a dotted
+ * rule, a scrolling list with ▶ cursor, inverted section headers and values
+ * on the right.
+ */
+export function menuPage(lcd: GraphicLcd, o: { title: string; tabs: string[]; tab: number; rows: MenuRow[]; cursor: number }): void {
+  lcd.clear();
+  lcd.text(2, 2, o.title, { scale: 2 });
+  let x = LCD_W;
+  for (let i = o.tabs.length - 1; i >= 0; i--) {
+    const w = GraphicLcd.measure(o.tabs[i]) + 6;
+    x -= w;
+    if (i === o.tab) {
+      lcd.fill(x, 2, w, 12);
+      lcd.text(x + 3, 5, o.tabs[i], { on: false });
+    } else {
+      lcd.frame(x, 2, w, 12);
+      lcd.frame(x + 1, 3, w - 2, 10);
+      lcd.text(x + 3, 5, o.tabs[i]);
+    }
+    x -= 3;
+  }
+  lcd.dotted(0, LCD_W - 1, 18);
+
+  const visible = 7;
+  const top = Math.max(0, Math.min(o.rows.length - visible, o.cursor - 3));
+  lcd.frame(0, 21, 5, 78);
+  const thumb = Math.max(6, Math.round((76 * visible) / Math.max(visible, o.rows.length)));
+  const pos = o.rows.length > visible ? Math.round(((76 - thumb) * top) / (o.rows.length - visible)) : 0;
+  lcd.fill(1, 22 + pos, 3, thumb);
+  for (let r = 0; r < visible; r++) {
+    const row = o.rows[top + r];
+    if (!row) break;
+    const y = 22 + r * 11;
+    if (row.header) {
+      lcd.inverse(14, y - 1, 225, row.label.slice(0, 37));
+      continue;
+    }
+    if (top + r === o.cursor) lcd.text(8, y, '▶');
+    const value = row.value ?? '';
+    const room = Math.floor((LCD_W - 2 - 15 - GraphicLcd.measure(value) - 6) / 6);
+    lcd.text(15, y, row.label.slice(0, Math.max(4, room)));
+    if (value) lcd.text(LCD_W - 2, y, value.slice(0, 16), { right: true });
+  }
 }

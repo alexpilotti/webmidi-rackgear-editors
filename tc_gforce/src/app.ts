@@ -3,16 +3,17 @@
 
 import { joinMessages, splitSysex, type Codec } from './codec.ts';
 import { GfMidi } from './midi.ts';
+import { ClockMeter } from './clock.ts';
 import {
   recallBankProgram, CARD_BANKS, MAX_BANK, cardIndex, romIndex, userIndex, Bank, BLOCKS, cleanName, NAME_LEN, paramAt, PARAMS, PARAMS_AT, Preset, RECORD_SIZE, SLOTS,
   type BlockId, type ParamDef,
 } from './model.ts';
 import { Billboard, GraphicLcd, h, Knob, NumberField, PanelKey } from './ui/components.ts';
 import { ROM_NAMES } from './rom.ts';
-import { infoPage, LCD_H, LCD_W, messageBox, paramPage, presetPage, selectGrid, textBox, type ListRow } from './ui/screens.ts';
+import { infoPage, LCD_H, LCD_W, menuPage, messageBox, paramPage, presetPage, selectGrid, textBox, type ListRow } from './ui/screens.ts';
 
 /** Panel modes (owner's manual: Recall, Store, Effects/Edit, Utility). */
-type Mode = 'recall' | 'edit' | 'store' | 'utility' | 'receive' | 'send';
+type Mode = 'recall' | 'edit' | 'store' | 'utility' | 'io' | 'tempo' | 'receive' | 'send';
 
 const pad3 = (n: number) => String(n).padStart(3, '0');
 const presets = (n: number) => `${n} User preset${n === 1 ? '' : 's'}`;
@@ -53,10 +54,36 @@ const bankLabel = (b: number) => (b === ROM ? 'ROM' : b === USER ? 'USER' : `CAR
 const bankCount = (b: number) => (b === ROM ? ROM_NAMES.length : b === USER ? SLOTS : b === CARD_BANKS + 1 ? 99 : 100);
 const BANK_TOTAL = CARD_BANKS + 2;
 
-const UTILITY_ITEMS = [
-  { id: 'receive', label: 'User Bank to MIDI   (editor receives)' },
-  { id: 'send', label: 'MIDI to User Bank   (editor sends)' },
-] as const;
+/** A row of a menu page (I/O Setup, Utility): values come from the editor. */
+interface MenuItem {
+  label: string;
+  header?: boolean;
+  value?: () => string;
+  /** VALUE wheel on this row. */
+  turn?: (delta: number) => void;
+  /** ENTER on this row. */
+  enter?: () => void;
+}
+const IO_TABS = ['MIDI', 'CONTROL', 'AUDIO'];
+const UTIL_TABS = ['CONFIG', 'BILLBOARD'];
+const UNIT = '--';
+/** Tempo range of the unit (manual p.31). */
+const BPM_MIN = 20;
+const BPM_MAX = 300;
+/**
+ * The G-Force has no MIDI clock input (manual p.55). Its TEMPO control source
+ * (I/O Setup → CONTROL → TEMPO) can be MIDI BASIC, MIDI CH 1–16 or OMNI, read
+ * from pitch bend (seen on a real unit). The unit counts every pitch-bend
+ * message as a tap (seen on a real unit: extra messages 5–30 ms apart gave
+ * 300 BPM), so each tap is exactly one message. The value alternates between
+ * full up and full down, so every tap is also a change.
+ */
+const BEND_UP = [0x7f, 0x7f];
+const BEND_DOWN = [0x00, 0x00];
+/** Taps per tempo send. */
+const TEMPO_TAPS = 2;
+/** Tempo channel: -1 = the Basic channel ("MIDI BASIC"), 0–15 = MIDI CH 1–16. */
+const TEMPO_BASIC = -1;
 
 interface Collect {
   id: number;
@@ -83,7 +110,19 @@ export class App {
   unitSel: { bank: number; n: number } | null = null;
   storeTarget = 0;
   cursor = PARAMS_AT;
-  utilityItem = 0;
+  /** Recall page field under the cursor: 0 SELECT, 1 BANK, 2 PRESET. */
+  recallField = 2;
+  ioTab = 0;
+  ioCursor = 1;
+  utilTab = 0;
+  utilCursor = -1;
+  private lastPcMode: PcMode = 'fine';
+  bpm = 120;
+  /** Channel the unit's TEMPO source listens to: TEMPO_BASIC or 0–15. */
+  tempoCh = TEMPO_BASIC;
+  tempoCursor = 1;
+  private tempoTimer = 0;
+  private tempoBlink = 0;
   sysexId = 0;
   channel = 0;
   pcMode: PcMode = 'fine';
@@ -115,6 +154,20 @@ export class App {
   private idSel!: HTMLSelectElement;
   private chSel!: HTMLSelectElement;
   private pcSel!: HTMLSelectElement;
+  private sizeField!: NumberField;
+  private bpmField!: NumberField;
+  private tempoChSel!: HTMLSelectElement;
+  private tempoInfo!: HTMLElement;
+  private tempoDialog!: HTMLDialogElement;
+  private clockSel!: HTMLSelectElement;
+  private clockBox!: HTMLInputElement;
+  /** Follow MIDI clock received by the editor and send its tempo to the unit. */
+  followClock = false;
+  private clock = new ClockMeter();
+  private clockBpm: number | null = null;
+  private lastClockAt = 0;
+  private lastTempoSendAt = -Infinity;
+  private lastSentBpm: number | null = null;
   private mapNote = h('div', { class: 'map-note', role: 'note' },
     h('b', { text: '⚠ G-Force: ' }), 'I/O Setup → MIDI → Mapping mode must be ', h('b', { text: 'EXTERNAL' }),
     ', with Bank selection and Bank size as set here.');
@@ -127,6 +180,7 @@ export class App {
     this.build();
     this.wireMidi();
     this.wireKeyboard();
+    this.startTempoBlink();
     void this.autoConnect();
     window.addEventListener('pagehide', () => this.persist());
     this.render();
@@ -170,6 +224,8 @@ export class App {
     const step = fast ? delta * 10 : delta;
     switch (this.mode) {
       case 'recall': {
+        if (this.recallField === 1) return this.showBank(this.view + delta);
+        if (this.recallField === 0) return this.flash('PARTIAL RECALL: ON THE UNIT ONLY');
         const n = bankCount(this.view);
         this.recallTarget = (this.recallTarget + step + n * 10) % n;
         return this.render();
@@ -185,8 +241,16 @@ export class App {
         return this.render();
       }
       case 'utility':
-        this.utilityItem = (this.utilityItem + delta + UTILITY_ITEMS.length * 10) % UTILITY_ITEMS.length;
-        return this.render();
+      case 'io':
+      case 'tempo': {
+        const item = this.menuItems()[this.menuCursor()];
+        if (item?.turn) {
+          item.turn(fast ? delta * 10 : delta);
+          return this.render();
+        }
+        if (item && !item.enter) this.flash(`${item.label}: SET ON THE G-FORCE`);
+        return;
+      }
       default:
     }
   }
@@ -198,8 +262,11 @@ export class App {
       this.cursor = PARAMS_AT + ((this.cursor - PARAMS_AT + (fast ? delta * 16 : delta) + span * 10) % span);
       return this.render();
     }
-    if (this.mode === 'utility') return this.turnValue(delta, false);
-    if (this.mode === 'recall') return this.showBank(this.view + delta);
+    if (this.isMenu) return this.moveMenu(delta);
+    if (this.mode === 'recall') {
+      this.recallField = Math.max(0, Math.min(2, this.recallField + delta));
+      return this.render();
+    }
     if (this.mode === 'store') return this.turnValue(delta, fast);
   }
 
@@ -221,7 +288,7 @@ export class App {
     if (this.busy) return;
     this.view = (b + BANK_TOTAL) % BANK_TOTAL;
     this.recallTarget = this.selectedIn(this.view);
-    if (this.mode === 'store' || this.mode === 'utility') this.mode = 'recall';
+    if (this.mode === 'store' || this.isMenu) this.mode = 'recall';
     this.render();
   }
 
@@ -242,7 +309,227 @@ export class App {
   pressUtility(): void {
     if (this.busy) return;
     this.mode = 'utility';
+    if (this.utilCursor < 0) this.utilCursor = this.utilItems().findIndex((r) => r.label === 'USER BANK TO MIDI');
     this.render();
+  }
+
+  pressIo(): void {
+    if (this.busy) return;
+    this.mode = 'io';
+    this.render();
+    if (this.ioTab === 0) this.flash('EDITOR SETTINGS: SET THE G-FORCE THE SAME', 2500);
+  }
+
+  /** ◄ ► keys: switch the pages of a display (I/O Setup, Utility); elsewhere they step like PARAMETER. */
+  pressArrow(delta: number): void {
+    if (this.mode === 'io') {
+      this.ioTab = (this.ioTab + delta + IO_TABS.length) % IO_TABS.length;
+      this.ioCursor = this.firstItem(this.ioItems());
+      return this.render();
+    }
+    if (this.mode === 'utility') {
+      this.utilTab = (this.utilTab + delta + UTIL_TABS.length) % UTIL_TABS.length;
+      this.utilCursor = this.firstItem(this.utilItems());
+      return this.render();
+    }
+    this.turnParameter(delta, false);
+  }
+
+  // ---- menu pages (I/O Setup, Utility)
+
+  private get isMenu(): boolean {
+    return this.mode === 'io' || this.mode === 'utility' || this.mode === 'tempo';
+  }
+
+  private menuItems(): MenuItem[] {
+    return this.mode === 'io' ? this.ioItems() : this.mode === 'tempo' ? this.tempoItems() : this.utilItems();
+  }
+
+  private menuCursor(): number {
+    return this.mode === 'io' ? this.ioCursor : this.mode === 'tempo' ? this.tempoCursor : this.utilCursor;
+  }
+
+  private firstItem(items: MenuItem[]): number {
+    return Math.max(0, items.findIndex((r) => !r.header));
+  }
+
+  /** PARAMETER on a menu page: move the cursor, skipping section headers. */
+  private moveMenu(delta: number): void {
+    const items = this.menuItems();
+    let c = this.menuCursor();
+    const step = Math.sign(delta);
+    for (let k = 0; k < Math.abs(delta); k++) {
+      let n = c + step;
+      while (n >= 0 && n < items.length && items[n].header) n += step;
+      if (n < 0 || n >= items.length) break;
+      c = n;
+    }
+    if (this.mode === 'io') this.ioCursor = c;
+    else if (this.mode === 'tempo') this.tempoCursor = c;
+    else this.utilCursor = c;
+    this.render();
+  }
+
+  /**
+   * I/O Setup, as on the unit (manual pp.21–22). The MIDI page shows and edits
+   * the editor's own settings, which must match the unit's.
+   */
+  private ioItems(): MenuItem[] {
+    const unit = (label: string): MenuItem => ({ label, value: () => UNIT });
+    if (this.ioTab === 1) {
+      return [
+        unit('MAIN VOL'), unit('BYPASS'), unit('TUNER'),
+        { label: 'TEMPO', value: () => `${this.tempoSourceLabel()} PITCH BEND`, turn: (d) => this.setTempoCh(Math.max(TEMPO_BASIC, Math.min(15, this.tempoCh + d))) },
+        { label: 'MODIFIER INPUT', header: true },
+        ...['EXT1', 'EXT2', 'EXT3', 'EXT4', 'EXT5', 'EXT6', 'EXT7', 'EXT8'].map(unit),
+      ];
+    }
+    if (this.ioTab === 2) {
+      return [{ label: 'AUDIO', header: true }, ...['SOURCE', 'INPUT', 'KILLDRY', 'IN LEVEL', 'OUT LEVEL', 'DIGITAL IN'].map(unit)];
+    }
+    const sel: Record<PcMode, string> = { pc: 'DISABLED', fine: 'FINE ADJUST', coarse: 'COARSE ADJUST', off: UNIT };
+    const bankModes: PcMode[] = ['pc', 'fine', 'coarse'];
+    return [
+      { label: 'GLOBAL MIDI SETTINGS', header: true },
+      { label: 'BASIC CHANNEL', value: () => String(this.channel + 1), turn: (d) => { this.channel = (this.channel + d + 160) % 16; this.syncMidiControls(); } },
+      {
+        label: 'PROGRAM CHANGE', value: () => (this.pcMode === 'off' ? 'DISABLED' : 'PRESET RECALL'),
+        turn: () => {
+          if (this.pcMode === 'off') this.pcMode = this.lastPcMode;
+          else { this.lastPcMode = this.pcMode; this.pcMode = 'off'; }
+          this.syncMidiControls();
+        },
+      },
+      {
+        label: 'BANK SELECTION', value: () => sel[this.pcMode],
+        turn: (d) => {
+          if (this.pcMode === 'off') return this.flash('PROGRAM CHANGE IS DISABLED');
+          const i = bankModes.indexOf(this.pcMode);
+          this.pcMode = bankModes[(i + Math.sign(d) + bankModes.length) % bankModes.length];
+          this.syncMidiControls();
+        },
+      },
+      { label: 'BANK SIZE', value: () => String(this.bankSize), turn: (d) => { this.bankSize = Math.max(1, Math.min(BANK_SIZE_MAX, this.bankSize + d)); this.syncMidiControls(); } },
+      { label: 'SYSEX DEVICE ID', value: () => String(this.sysexId), turn: (d) => { this.sysexId = Math.max(0, Math.min(126, this.sysexId + d)); this.syncMidiControls(); } },
+      { label: 'PROGRAM CHANGE MAPPING', header: true },
+      { label: 'PROGRAM CHANGE OFFSET', value: () => '0' },
+      { label: 'MAPPING MODE', value: () => (this.pcMode === 'fine' || this.pcMode === 'coarse' ? 'EXTERNAL' : UNIT), enter: () => this.flash('SET MAPPING MODE EXTERNAL ON THE G-FORCE', 4000) },
+      { label: 'CUSTOM MAP', header: true },
+      unit('MAP PRG. CHANGE NO.'), unit('INTO PRESET'), unit('RETRANSMIT TO MIDI OUT'), unit('RESET CUSTOM MAP'),
+    ];
+  }
+
+  /** Utility, as on the unit (manual pp.28–30). Only the MIDI bank transfers run in the editor. */
+  private utilItems(): MenuItem[] {
+    const unit = (label: string): MenuItem => ({ label, value: () => UNIT });
+    const head = (label: string): MenuItem => ({ label, header: true });
+    if (this.utilTab === 1) {
+      return [head('SCROLLING'), unit('SPEED'), head('ACTIVITY'), unit('PRESET CHANGE'), unit('ALWAYS SHOW TUNER'),
+        unit('RUN MESSAGE'), unit('MESSAGE STRING'), unit('EDIT MESSAGE')];
+    }
+    return [
+      head('USER INTERACTION'), unit('DISPLAY VIEWING ANGLE'), unit('PARAMETER DIAL DIRECTION'),
+      head('PRESET CHANGE'), unit('EFFECT MUTING'), unit('EXTERN MODIFIER INPUT'),
+      head('ENVIRONMENT'), unit('PEDAL TYPE'), unit('PEDAL CALIBRATION'), unit('PEDAL CURVE'),
+      { label: 'TUNER MIDI OUT', value: () => 'OFF FOR DUMPS' },
+      head('USER BANK PROTECT'), unit('PROTECT'), unit('PROTECT LO-LIMIT'), unit('PROTECT HI-LIMIT'),
+      head('USER BANK BACKUP'), unit('USER BANK TO CARD'), unit('CARD TO USER BANK'),
+      { label: 'USER BANK TO MIDI', value: () => 'PRESS ENTER', enter: () => this.receiveBank() },
+      { label: 'MIDI TO USER BANK', value: () => 'PRESS ENTER', enter: () => void this.sendBank() },
+    ];
+  }
+
+  pressTempo(): void {
+    if (this.busy) return;
+    this.mode = 'tempo';
+    this.render();
+  }
+
+  /** Tempo page, after the unit's Tempo display (manual p.31): VALUE dials the BPM. */
+  private tempoItems(): MenuItem[] {
+    return [
+      { label: 'GLOBAL TEMPO', header: true },
+      {
+        label: 'TEMPO', value: () => `${this.bpm} BPM${this.followClock ? ' (CLOCK)' : ''}`,
+        turn: (d) => (this.followClock ? this.flash('FOLLOWING MIDI CLOCK') : this.setBpm(this.bpm + d)),
+      },
+      { label: 'TEMPO IN MS', value: () => `${Math.round(60000 / this.bpm)} MS` },
+      { label: 'OVERRIDE PRESET TEMPO', value: () => UNIT },
+      { label: 'MIDI', header: true },
+      { label: 'TEMPO SOURCE', value: () => this.tempoSourceLabel(), turn: (d) => this.setTempoCh(Math.max(TEMPO_BASIC, Math.min(15, this.tempoCh + d))) },
+      { label: 'SEND TEMPO NOW', value: () => 'PRESS ENTER', enter: () => this.sendTempo() },
+      { label: 'TEMPO SETTINGS', value: () => 'PRESS ENTER', enter: () => this.openTempoDialog() },
+    ];
+  }
+
+  /** Set the BPM (20–300) and send it shortly after the last change. */
+  setBpm(v: number, from?: NumberField): void {
+    this.bpm = Math.max(BPM_MIN, Math.min(BPM_MAX, Math.round(v)));
+    if (from !== this.bpmField) this.bpmField.set(this.bpm);
+    this.saveSettings();
+    this.startTempoBlink();
+    clearTimeout(this.tempoTimer);
+    this.tempoTimer = window.setTimeout(() => this.sendTempo(), 400);
+    this.render();
+  }
+
+  setTempoCh(v: number): void {
+    this.tempoCh = v;
+    this.tempoChSel.value = String(v);
+    this.saveSettings();
+    this.render();
+  }
+
+  /** The unit's TEMPO setting that matches the editor's channel. */
+  private tempoSourceLabel(): string {
+    return this.tempoCh === TEMPO_BASIC ? 'MIDI BASIC' : `MIDI CH ${this.tempoCh + 1}`;
+  }
+
+  private bendUp = false;
+
+  /**
+   * Send the tempo as taps on the unit's TEMPO channel, 60000 / BPM ms apart:
+   * one pitch-bend message per tap, alternating full up / full down.
+   * Scheduled with Web MIDI timestamps so the interval is exact.
+   */
+  sendTempo(): void {
+    clearTimeout(this.tempoTimer);
+    if (!this.midi.hasOutput) return this.flash('NO MIDI OUTPUT SELECTED');
+    const ms = 60000 / this.bpm;
+    const ch = this.tempoCh === TEMPO_BASIC ? this.channel : this.tempoCh;
+    const bend = (v: number[], t: number) => this.midi.send([0xe0 | ch, v[0], v[1]], t);
+    try {
+      const t0 = performance.now() + 10;
+      for (let i = 0; i < TEMPO_TAPS; i++) {
+        this.bendUp = !this.bendUp;
+        bend(this.bendUp ? BEND_UP : BEND_DOWN, t0 + i * ms);
+      }
+      this.lastTempoSendAt = performance.now();
+      this.lastSentBpm = this.bpm;
+      this.log(`→ Tempo ${this.bpm} BPM (${TEMPO_TAPS} pitch-bend taps on channel ${ch + 1}, ${Math.round(ms)} ms apart)`);
+    } catch (e) {
+      this.error(e as Error);
+    }
+  }
+
+  /** The TEMPO key LED blinks at the tempo, as on the unit. */
+  private startTempoBlink(): void {
+    clearInterval(this.tempoBlink);
+    const k = this.keys.tempo;
+    if (!k) return;
+    let on = false;
+    this.tempoBlink = window.setInterval(() => { on = !on; k.set(on ? 'on' : 'off'); }, 60000 / this.bpm / 2);
+  }
+
+  /** After an LCD edit of the MIDI settings: update the MIDI unit controls and save. */
+  private syncMidiControls(): void {
+    this.chSel.value = String(this.channel);
+    this.idSel.value = String(this.sysexId);
+    this.pcSel.value = this.pcMode;
+    this.pcSel.title = PC_MODES.find((m) => m.id === this.pcMode)!.title;
+    this.sizeField.set(this.bankSize);
+    this.saveSettings();
+    this.renderMidi();
   }
 
   pressExit(): void {
@@ -260,7 +547,13 @@ export class App {
       case 'store':
         return this.storeTo(this.storeTarget);
       case 'utility':
-        return UTILITY_ITEMS[this.utilityItem].id === 'receive' ? void this.receiveBank() : void this.sendBank();
+      case 'io':
+      case 'tempo': {
+        const item = this.menuItems()[this.menuCursor()];
+        if (item?.enter) return item.enter();
+        if (item && !item.turn) this.flash(`${item.label}: SET ON THE G-FORCE`);
+        return;
+      }
       default:
     }
   }
@@ -296,7 +589,7 @@ export class App {
     this.view = USER;
     this.recallTarget = next;
     this.unitSel = { bank: USER, n: next };
-    if (this.mode === 'store' || this.mode === 'utility') this.mode = 'recall';
+    if (this.mode === 'store' || this.isMenu) this.mode = 'recall';
     this.recallOnUnit(next);
     this.render();
   }
@@ -309,7 +602,7 @@ export class App {
     this.view = b;
     this.recallTarget = p;
     this.unitSel = { bank: b, n: p };
-    if (this.mode === 'store' || this.mode === 'utility') this.mode = 'recall';
+    if (this.mode === 'store' || this.isMenu) this.mode = 'recall';
     if (this.pcMode === 'off' || !this.midi.hasOutput) {
       this.render();
       return this.flash(this.midi.hasOutput ? 'RECALL IS OFF (BANK SEL)' : 'NO MIDI OUTPUT SELECTED');
@@ -394,6 +687,9 @@ export class App {
     this.midi.onPortsChanged = () => this.refreshPorts();
     this.midi.onActivity = (d) => this.blink(d);
     this.midi.onProgramChange = (p, ch) => this.log(`← program change ${p + 1} (ch ${ch + 1})`);
+    this.midi.onClock = (t) => this.onClock(t);
+    this.midi.onTransport = () => this.clock.reset();
+    window.setInterval(() => this.clockWatch(), 500);
     this.midi.onSysex((m) => this.onSysex(m));
   }
 
@@ -514,7 +810,11 @@ export class App {
     };
     fill(this.inSel, this.midi.inputs(), this.midi.inputId, s.input);
     fill(this.outSel, this.midi.outputs(), this.midi.outputId, s.output);
+    const clockCur = this.clockSel.value;
+    fill(this.clockSel, this.midi.inputs(), clockCur || null, s.clockIn);
+    this.clockSel.options[0].text = 'same as MIDI IN';
     this.midi.selectInput(this.inSel.value || null);
+    this.midi.selectClockInput(this.clockSel.value || null);
     this.midi.selectOutput(this.outSel.value || null);
     this.renderMidi();
   }
@@ -630,7 +930,8 @@ export class App {
   // Persistence (this browser only)
 
   private settings(): {
-    input?: string; output?: string; id?: number; channel?: number; pc?: string; bankSize?: number;
+    input?: string; output?: string; id?: number; channel?: number; pc?: string; bankSize?: number; bpm?: number; tempoCh?: number;
+    followClock?: boolean; clockIn?: string;
     view?: number; unitSel?: { bank: number; n: number } | null;
   } {
     try {
@@ -654,6 +955,10 @@ export class App {
         channel: this.channel,
         pc: this.pcMode,
         bankSize: this.bankSize,
+        bpm: this.bpm,
+        tempoCh: this.tempoCh,
+        followClock: this.followClock,
+        clockIn: this.midi.connected ? (this.clockSel.value ? this.clockSel.selectedOptions[0]?.text : undefined) : old.clockIn,
       }));
     } catch { /* storage unavailable */ }
   }
@@ -687,6 +992,11 @@ export class App {
     if (pc) this.pcMode = pc.id;
     const bs = Number(this.settings().bankSize);
     if (Number.isInteger(bs) && bs >= 1 && bs <= BANK_SIZE_MAX) this.bankSize = bs;
+    const bpm = Number(this.settings().bpm);
+    if (Number.isInteger(bpm) && bpm >= BPM_MIN && bpm <= BPM_MAX) this.bpm = bpm;
+    const tc = Number(this.settings().tempoCh);
+    if (Number.isInteger(tc) && tc >= TEMPO_BASIC && tc <= 15) this.tempoCh = tc;
+    this.followClock = this.settings().followClock === true;
     this.restoreMemory();
     const v = Number(this.settings().view);
     if (Number.isInteger(v) && v >= 0 && v < BANK_TOTAL) this.view = v;
@@ -720,6 +1030,8 @@ export class App {
   private build(): void {
     const scaler = h('div', { class: 'scaler' });
     scaler.append(this.buildPanel(), this.buildStrip(), this.buildMidiUnit(), this.buildLibrary(), this.buildData());
+    this.tempoDialog = this.buildTempoDialog();
+    document.body.append(this.tempoDialog);
     this.root.append(scaler);
     const fit = () => scaler.style.setProperty('zoom', String(Math.min(1.25, this.root.clientWidth / 1520)));
     new ResizeObserver(fit).observe(this.root);
@@ -791,7 +1103,7 @@ export class App {
         ...BLOCKS.slice(0, 3).map((b) => this.key(b.id, b.label, () => this.pressBlock(b.id), `${b.label}: jump to its decoded parameters`)),
         this.key('tuner', 'TUNER', () => this.notInEditor('TUNER'), 'Tuner (on the unit)'),
         ...BLOCKS.slice(3, 6).map((b) => this.key(b.id, b.label, () => this.pressBlock(b.id), `${b.label}: jump to its decoded parameters`)),
-        this.key('tempo', 'TEMPO', () => this.notInEditor('TEMPO'), 'Tap tempo (on the unit)'),
+        this.key('tempo', 'TEMPO', () => this.pressTempo(), 'Tempo page: VALUE dials the BPM, sent to the G-Force (T)'),
         ...BLOCKS.slice(6, 9).map((b) => this.key(b.id, b.label, () => this.pressBlock(b.id), `${b.label}: jump to its decoded parameters`))));
 
     const control = h('div', { class: 'key-group' }, h('div', { class: 'group-title', text: 'CONTROL' }),
@@ -800,12 +1112,12 @@ export class App {
         this.key('store', 'STORE', () => this.pressStore(), 'Store: turn VALUE to choose the slot, ENTER stores (S)'),
         this.key('effects', 'EFFECTS', () => this.pressEffects(), 'Edit: PARAMETER moves through the preset bytes, VALUE changes them (E)'),
         this.key('mod', 'MOD', () => this.notInEditor('MODIFIERS'), 'Modifiers (not decoded yet)'),
-        this.key('io', 'I/O SETUP', () => this.notInEditor('I/O SETUP'), 'I/O setup (on the unit)'),
+        this.key('io', 'I/O SETUP', () => this.pressIo(), 'I/O Setup: MIDI settings of the editor (◄ ► for CONTROL and AUDIO) (I)'),
         this.key('utility', 'UTILITY', () => this.pressUtility(), 'Utility: send or receive the User bank (U)')));
 
     const nav = h('div', { class: 'nav' },
       h('div', { class: 'nav-row' },
-        h('div', { class: 'arrows' }, this.key('left', '◄', () => this.turnParameter(-1, false), 'Previous', false), this.key('right', '►', () => this.turnParameter(1, false), 'Next', false)),
+        h('div', { class: 'arrows' }, this.key('left', '◄', () => this.pressArrow(-1), 'Previous page (←)', false), this.key('right', '►', () => this.pressArrow(1), 'Next page (→)', false)),
         h('div', { class: 'exit-enter' }, this.key('exit', 'EXIT', () => this.pressExit(), 'Exit (Esc)', false), this.key('enter', 'ENTER', () => this.pressEnter(), 'Enter'))),
       h('div', { class: 'wheels' },
         h('div', { class: 'wheel-wrap' }, h('div', { class: 'silk', text: 'PARAMETER' }),
@@ -869,7 +1181,7 @@ export class App {
       this.renderMidi();
     });
     this.pcSel.title = PC_MODES.find((m) => m.id === this.pcMode)!.title;
-    const sizeField = new NumberField({
+    const sizeField = this.sizeField = new NumberField({
       label: 'Bank size', min: 1, max: BANK_SIZE_MAX, value: this.bankSize,
       title: 'The G-Force Bank size, 1–128 (I/O Setup → MIDI). Needs Mapping mode External.',
       onChange: (v) => { this.bankSize = v; this.saveSettings(); },
@@ -899,8 +1211,122 @@ export class App {
         btn('receive', 'RECEIVE BANK', () => this.receiveBank(), 'Wait for a User bank dump: on the G-Force, Utility → User Bank to MIDI'),
         btn('send', 'SEND BANK', () => void this.sendBank(), 'Send the User bank: on the G-Force, first arm Utility → MIDI to User Bank'),
         btn('load', 'LOAD .SYX', () => this.fileInput.click(), 'Load a G-Force User bank file'),
-        btn('save', 'SAVE .SYX', () => this.saveFile(), 'Save the editor bank as a .syx file')),
+        btn('save', 'SAVE .SYX', () => this.saveFile(), 'Save the editor bank as a .syx file'),
+        btn('tempoDlg', 'TEMPO…', () => this.openTempoDialog(), 'Tempo to the G-Force: BPM, source, follow MIDI clock')),
       h('div', { class: 'midi-status' }, this.statusEl, this.logEl)), this.ear());
+  }
+
+  /** Tempo dialog: BPM, source and clock settings, and how to set up the G-Force for them. */
+  private buildTempoDialog(): HTMLDialogElement {
+    this.bpmField = new NumberField({
+      label: 'Tempo BPM', min: BPM_MIN, max: BPM_MAX, value: this.bpm,
+      title: 'Tempo in BPM (20–300). Sent to the G-Force a moment after each change.',
+      onChange: (v) => this.setBpm(v, this.bpmField),
+    });
+    this.tempoChSel = h('select', { 'aria-label': 'Tempo channel', title: 'Must match TEMPO in I/O Setup → CONTROL on the G-Force' });
+    this.tempoChSel.append(h('option', { value: String(TEMPO_BASIC), text: 'MIDI BASIC' }));
+    for (let i = 0; i < 16; i++) this.tempoChSel.append(h('option', { value: String(i), text: `MIDI CH ${i + 1}` }));
+    this.tempoChSel.value = String(this.tempoCh);
+    this.tempoChSel.addEventListener('change', () => this.setTempoCh(Number(this.tempoChSel.value)));
+    this.btns.tempo = h('button', { class: 'rack-btn', text: 'SEND', title: 'Send the tempo now' });
+    this.btns.tempo.addEventListener('click', () => this.sendTempo());
+    this.tempoInfo = h('div', { class: 'tempo-info' });
+    const ctl = (label: string, el: HTMLElement, note: string) =>
+      h('div', { class: 'tempo-ctl' }, h('div', { class: 'silk', text: label }), el, h('div', { class: 'tempo-note', text: note }));
+    const steps = h('ol', { class: 'tempo-steps' },
+      h('li', {}, 'On the G-Force: ', h('b', { text: 'I/O SETUP' }), ', ► to ', h('b', { text: 'CONTROL' }), ', cursor on ', h('b', { text: 'TEMPO' }), ', VALUE to ', h('b', { text: 'MIDI BASIC' }), ' (or ', h('b', { text: 'MIDI CH n' }), '). Its controller reads ', h('b', { text: 'PITCH BEND' }), '.'),
+      h('li', {}, 'Here: set ', h('b', { text: 'SOURCE' }), ' to the same setting. MIDI BASIC uses the CH set in the MIDI unit.'),
+      h('li', {}, 'Every ', h('b', { text: 'BPM' }), ' change is then sent as two TEMPO taps (one pitch-bend message each), one beat apart.'),
+      h('li', {}, 'Optional: tick ', h('b', { text: 'FOLLOW MIDI CLOCK' }), ' and pick the input that receives clock. Its tempo is then sent whenever it changes.'));
+    const close = h('button', { class: 'dlg-close', 'aria-label': 'Close', title: 'Close (Esc)', text: '✕' });
+    const dlg = h('dialog', { class: 'tempo-dialog', 'aria-label': 'Tempo' },
+      h('div', { class: 'dlg-head' },
+        h('div', { class: 'midi-title', text: 'TEMPO' }), h('div', { class: 'silk', text: 'GLOBAL TEMPO VIA MIDI' }), this.tempoInfo, close),
+      h('div', { class: 'dlg-ctls' },
+        ctl('BPM', this.bpmField.el, '20–300'),
+        ctl('SOURCE', this.tempoChSel, 'as TEMPO on the unit'),
+        this.buildClockCtl(),
+        h('div', { class: 'tempo-ctl' }, h('div', { class: 'silk', text: ' ' }), this.btns.tempo, h('div', { class: 'tempo-note', text: 'send now' }))),
+      h('div', { class: 'tempo-help' }, h('div', { class: 'silk', text: 'SETUP ON THE G-FORCE (ONCE)' }), steps,
+        h('div', { class: 'tempo-note', text: 'The G-Force has no MIDI clock input (manual p.55); it takes the tempo as presses of its TEMPO control (p.31).' })));
+    close.addEventListener('click', () => dlg.close());
+    // Click on the backdrop closes it.
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+    return dlg;
+  }
+
+  openTempoDialog(): void {
+    if (!this.tempoDialog.open) this.tempoDialog.showModal();
+  }
+
+  private buildClockCtl(): HTMLElement {
+    this.clockBox = h('input', { type: 'checkbox' });
+    this.clockBox.checked = this.followClock;
+    this.clockBox.addEventListener('change', () => this.setFollowClock(this.clockBox.checked));
+    this.clockSel = h('select', { 'aria-label': 'MIDI clock input', title: 'Input that receives MIDI clock (a DAW, drum machine, …)' });
+    this.clockSel.append(h('option', { value: '', text: 'same as MIDI IN' }));
+    this.clockSel.addEventListener('change', () => {
+      this.midi.selectClockInput(this.clockSel.value || null);
+      this.clock.reset();
+      this.saveSettings();
+    });
+    return h('div', { class: 'tempo-ctl' },
+      h('label', { class: 'silk clock-check', title: 'Measure the tempo of incoming MIDI clock and send it to the G-Force' }, this.clockBox, ' FOLLOW MIDI CLOCK'),
+      this.clockSel,
+      h('div', { class: 'tempo-note', text: 'clock input' }));
+  }
+
+  setFollowClock(on: boolean): void {
+    this.followClock = on;
+    this.clockBox.checked = on;
+    this.clock.reset();
+    this.clockBpm = null;
+    this.lastSentBpm = null;
+    this.saveSettings();
+    this.renderTempoInfo();
+  }
+
+  /**
+   * A MIDI clock tick. While following, the measured tempo (rounded to whole
+   * BPM, 20–300) is sent to the unit when it changes, at most once per send
+   * (a send takes one beat), so presses never overlap.
+   */
+  private onClock(time: number): void {
+    this.lastClockAt = performance.now();
+    const b = this.clock.tick(time);
+    if (!this.followClock || b === null) return;
+    const shown = this.clockBpm === null || Math.abs(b - this.clockBpm) >= 0.1;
+    this.clockBpm = b;
+    if (shown) this.renderTempoInfo();
+    const target = Math.max(BPM_MIN, Math.min(BPM_MAX, Math.round(b)));
+    const busyFor = (60000 / this.bpm) * (TEMPO_TAPS - 0.5);
+    if (target === this.lastSentBpm || performance.now() - this.lastTempoSendAt < busyFor) return;
+    this.bpm = target;
+    this.bpmField.set(this.bpm);
+    this.saveSettings();
+    this.startTempoBlink();
+    this.sendTempo();
+    if (this.mode === 'tempo') this.renderDisplay();
+  }
+
+  /** Notice when the clock stops. */
+  private clockWatch(): void {
+    if (!this.followClock || this.clockBpm === null) return;
+    if (performance.now() - this.lastClockAt > 1000) {
+      this.clockBpm = null;
+      this.clock.reset();
+      this.renderTempoInfo();
+    }
+  }
+
+  private renderTempoInfo(): void {
+    if (!this.tempoInfo) return;
+    this.bpmField.setDisabled(this.followClock);
+    this.bpmField.el.title = this.followClock ? 'Set by the incoming MIDI clock (FOLLOW MIDI CLOCK is on)' : '';
+    const beat = `${Math.round(60000 / this.bpm)} ms per beat`;
+    if (!this.followClock) this.tempoInfo.textContent = beat;
+    else this.tempoInfo.textContent = this.clockBpm === null ? 'waiting for MIDI clock…' : `clock ${this.clockBpm.toFixed(1)} BPM`;
+    this.tempoInfo.classList.toggle('waiting', this.followClock && this.clockBpm === null);
   }
 
   private buildLibrary(): HTMLElement {
@@ -947,19 +1373,23 @@ export class App {
     document.addEventListener('keydown', (e) => {
       const t = e.target as HTMLElement;
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (this.tempoDialog.open) return;
       if (t.classList?.contains('knob-body')) return;
       const k = e.key.toLowerCase();
       const list = this.mode === 'recall' || this.mode === 'store';
-      if (e.key === 'ArrowUp') (list ? this.turnValue(-1, false) : this.turnValue(1, false));
-      else if (e.key === 'ArrowDown') (list ? this.turnValue(1, false) : this.turnValue(-1, false));
-      else if (e.key === 'ArrowRight') this.turnParameter(1, false);
-      else if (e.key === 'ArrowLeft') this.turnParameter(-1, false);
+      const menu = this.isMenu;
+      if (e.key === 'ArrowUp') (menu ? this.moveMenu(-1) : list ? this.turnValue(-1, false) : this.turnValue(1, false));
+      else if (e.key === 'ArrowDown') (menu ? this.moveMenu(1) : list ? this.turnValue(1, false) : this.turnValue(-1, false));
+      else if (e.key === 'ArrowRight') this.pressArrow(1);
+      else if (e.key === 'ArrowLeft') this.pressArrow(-1);
       else if (e.key === 'Enter') this.pressEnter();
       else if (e.key === 'Escape') this.pressExit();
       else if (k === 'r') this.pressRecall();
       else if (k === 's') this.pressStore();
       else if (k === 'e') this.pressEffects();
       else if (k === 'u') this.pressUtility();
+      else if (k === 'i') this.pressIo();
+      else if (k === 't') this.pressTempo();
       else if (e.key === 'Delete') this.clearSlot();
       else return;
       e.preventDefault();
@@ -997,7 +1427,7 @@ export class App {
           const name = b === USER ? nm(t) : b === ROM ? ROM_NAMES[t] : '- on the card -';
           presetPage(lcd, {
             title: 'Recall', leftLabel: 'SELECT:', left: selectGrid,
-            bank: bankLabel(b), cardLabel: b > USER ? bankLabel(b) : 'CARD 1', number: t + 1, name,
+            bank: bankLabel(b), cardLabel: b > USER ? bankLabel(b) : 'CARD 1', focus: this.recallField, number: t + 1, name,
           });
           label = `Recall, ${bankLabel(b)} ${t + 1}: ${name}`;
         }
@@ -1009,7 +1439,7 @@ export class App {
           left: textBox(this.bank.used(this.storeTarget)
             ? ['REPLACES', this.presetName(this.storeTarget).toUpperCase(), '', 'ENTER: STORE']
             : ['EMPTY SLOT', '', '', 'ENTER: STORE']),
-          bank: 'USER', cardLabel: 'CARD 1', number: this.storeTarget + 1, name: this.edit.name || '- no name -',
+          bank: 'USER', cardLabel: 'CARD 1', focus: 2, number: this.storeTarget + 1, name: this.edit.name || '- no name -',
         });
         label = `Store ${this.edit.name} into User ${this.storeTarget + 1}`;
         break;
@@ -1037,13 +1467,21 @@ export class App {
         break;
       }
       case 'utility':
-        infoPage(lcd, {
-          title: 'Utility',
-          lines: [...UTILITY_ITEMS.map((it) => it.label.toUpperCase().replace(/\s+\(/, ' (')), '', 'ENTER STARTS IT HERE. ON THE G-FORCE,', 'CHOOSE THE SAME ITEM, ENTER TWICE.'],
-          select: this.utilityItem,
+      case 'io':
+      case 'tempo': {
+        const items = this.menuItems();
+        const cur = this.menuCursor();
+        const io = this.mode === 'io', tempo = this.mode === 'tempo';
+        const title = io ? 'I/O Setup' : tempo ? 'Tempo' : 'Utility';
+        menuPage(lcd, {
+          title, tabs: io ? IO_TABS : tempo ? [] : UTIL_TABS, tab: io ? this.ioTab : tempo ? 0 : this.utilTab,
+          rows: items.map((r) => ({ label: r.label, header: r.header, value: r.value?.() })), cursor: cur,
         });
-        label = `Utility: ${UTILITY_ITEMS[this.utilityItem].label}`;
+        if (tempo) bb = String(this.bpm);
+        const it = items[cur];
+        label = `${title}: ${it?.label ?? ''} ${it?.value?.() ?? ''}`;
         break;
+      }
       case 'receive': {
         const c = this.collect;
         const f = c ? (c.msgs.length - 1) / Math.max(1, c.count) : 0;
@@ -1083,7 +1521,8 @@ export class App {
     set('store', this.mode === 'store' ? 'flash' : 'off');
     set('effects', this.mode === 'edit' ? 'on' : 'off');
     set('utility', this.mode === 'utility' || this.busy ? 'on' : 'off');
-    set('enter', this.mode === 'store' || this.mode === 'utility' || (this.mode === 'recall' && (this.view !== USER || this.recallTarget !== this.current)) ? 'flash' : 'off');
+    set('io', this.mode === 'io' ? 'on' : 'off');
+    set('enter', this.mode === 'store' || (this.mode === 'utility' && !!this.menuItems()[this.utilCursor]?.enter) || (this.mode === 'recall' && (this.view !== USER || this.recallTarget !== this.current)) ? 'flash' : 'off');
     const p = paramAt(this.cursor);
     for (const b of BLOCKS) set(b.id, this.mode === 'edit' && p?.block === b.id ? 'on' : 'off');
   }
@@ -1171,6 +1610,8 @@ export class App {
     this.btns.receive.textContent = this.mode === 'receive' ? 'CANCEL' : 'RECEIVE BANK';
     this.btns.send.disabled = !out || this.busy;
     this.btns.load.disabled = this.busy;
+    this.btns.tempo.disabled = !out;
+    this.renderTempoInfo();
     this.mapNote.hidden = this.pcMode !== 'fine' && this.pcMode !== 'coarse';
     if (!this.statusEl.textContent) {
       this.statusEl.textContent = GfMidi.supported

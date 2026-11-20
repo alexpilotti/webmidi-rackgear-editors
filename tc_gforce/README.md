@@ -70,6 +70,31 @@ Web MIDI with SysEx needs Chrome, Edge or Opera, served from `localhost` or HTTP
    Fine or Coarse Adjust is selected, the MIDI unit shows a reminder that
    Mapping mode must be External.
 
+**Tempo:** the G-Force has no MIDI clock input (MIDI implementation chart,
+p.55), but its TEMPO control can be driven by MIDI pitch bend. On the unit,
+**I/O Setup → CONTROL → TEMPO** offers NONE, PEDAL, MIDI BASIC, MIDI CH 1–16
+and OMNI, each read from PITCH BEND (seen on a real unit; there is no Learn).
+Set it up once:
+1. On the G-Force: **I/O Setup**, ► to **CONTROL**, cursor on **TEMPO**, and
+   VALUE to **MIDI BASIC** (or a MIDI CH).
+2. In the editor, open **TEMPO…** (MIDI unit, or ENTER on TEMPO SETTINGS
+   on the Tempo page) and set **SOURCE** to the same setting. MIDI BASIC uses the channel set as CH in the MIDI unit.
+
+The Tempo dialog shows these steps too. From then on, changing **BPM** (20–300)
+in the Tempo dialog or on the Tempo page sends the tempo as two taps,
+60000 ÷ BPM ms apart. The unit counts every pitch-bend message as a tap (seen
+on a real unit), so each tap is a single message, alternating full up and full
+down.
+
+**Following MIDI clock:** tick **FOLLOW MIDI CLOCK** in the Tempo dialog and
+choose the input that receives the clock (a DAW, a drum machine…; "same as
+MIDI IN" uses the G-Force port). The editor measures the tempo over the last
+two beats (24 ticks per beat) and sends it, rounded to whole BPM, whenever it
+changes. A new tempo waits until the previous one has been sent (one beat), so
+the taps never overlap. While it follows, the BPM field is locked. When the clock stops, the dialog shows
+"waiting for MIDI clock…". The G-Force itself still can't take MIDI clock:
+the editor converts it.
+
 **Banks:** the tabs above the list switch between **ROM**, **USER** and
 **CARD 1–6**, like the BANK field on the unit's Recall page. Clicking a preset
 in any bank recalls it on the G-Force.
@@ -93,20 +118,23 @@ A faulty transfer can leave the User bank empty, so keep the backup.
 
 | Control | What it does |
 |---|---|
-| RECALL | PARAMETER (or ◄ ►, ←/→) switches the bank, VALUE (or ↑/↓) chooses the preset, ENTER recalls it on the G-Force (a User preset is also loaded into the edit buffer) |
+| RECALL | as on the unit (manual p.17): PARAMETER moves the cursor between SELECT, BANK and PRESET (its label is inverted); VALUE changes that field (BANK switches ROM / USER / CARD 1–6, PRESET previews); ENTER recalls on the G-Force (a User preset is also loaded into the edit buffer). SELECT stays on ALL: partial recall is on the unit only |
 | STORE | VALUE chooses the target slot, ENTER stores the edit buffer there |
-| EFFECTS | edit mode: PARAMETER (or ◄ ►) moves through the preset bytes, VALUE changes the one under the cursor |
+| EFFECTS | edit mode: PARAMETER moves through the preset bytes, VALUE changes the one under the cursor |
 | GATE … REVERB | jump to that block's decoded parameters (REVERB: DECAY TIME). Other blocks are not decoded yet. |
-| UTILITY | PARAMETER/VALUE choose User Bank to MIDI or MIDI to User Bank, ENTER starts it |
+| I/O SETUP | MIDI, CONTROL and AUDIO pages (◄ ►), as on the unit. The MIDI page shows and edits the editor's settings (Basic channel, Program change, Bank selection, Bank size, SysEx ID), which must match the unit's; Mapping mode must be External on the unit. CONTROL and AUDIO are listed but set on the unit only |
+| UTILITY | CONFIG and BILLBOARD pages (◄ ►), as on the unit. In CONFIG, USER BANK TO MIDI (the editor receives) and MIDI TO USER BANK (the editor sends) run with ENTER; the other items are on the unit only. Tuner MIDI Out must be Off on the unit for dumps (manual p.29) |
+| ◄ ► | switch the pages of I/O Setup and Utility; elsewhere they step like PARAMETER |
 | EXIT | back to RECALL; cancels a receive |
-| BYPASS, TUNER, TEMPO, MOD, I/O SETUP | on the unit only |
+| TEMPO | Tempo page, after the unit's (manual p.31): VALUE dials 20–300 BPM, which is sent to the G-Force; the TEMPO source channel is set here too. The key's LED blinks at the tempo |
+| BYPASS, TUNER, MOD | on the unit only |
 
 The value strip shows the decoded parameters, the byte under the cursor and the
 stored value. The name field renames the edit buffer; STORE writes it. In the
 PRESET DATA grid, click a byte to put the cursor on it. Orange bytes differ
 from the stored preset.
 
-Keyboard shortcuts: `R` recall, `S` store, `E` edit, `U` utility, `Enter`,
+Keyboard shortcuts: `R` recall, `S` store, `E` edit, `U` utility, `I` I/O setup, `T` tempo, `Enter`,
 `Esc` exit, ↑/↓ and ←/→ turn the wheels, `Delete` clears the selected slot.
 
 ## Assumptions to verify on hardware
@@ -136,7 +164,13 @@ simulated unit, not against the G-Force receiving data.
    Bank size 100, with both Coarse and Fine, for ROM and User presets. Other
    Bank sizes and card banks are untested: other sizes assume the unit
    computes bank × size + program and reads it as the table position.
-9. **Panel look**: the colours and the Recall and parameter screens follow
+9. **Tempo**: the unit takes every pitch-bend message on its TEMPO source as
+   a tap (seen on a real unit: extra messages 5–30 ms apart gave 300 BPM). Two
+   taps are sent per tempo, exactly 60000 ÷ BPM ms apart. The unit's reading
+   can be off by about 1 BPM (seen: 200 BPM showed 199). Shortening the gap
+   by 1 ms overshot to 204, so its tap timer is coarse; no correction is
+   applied.
+10. **Panel look**: the colours and the Recall and parameter screens follow
    photos of a real unit (yellow-green LCD, red billboard LEDs and key LEDs,
    green meters). The LCD resolution (240 × 100 dots here), the fonts and the
    Store and Utility screens are approximations. The SELECT grid on Recall
@@ -165,6 +199,7 @@ src/app.ts             panel logic, modes, librarian
 src/ui/components.ts   wheels, keys, pixel LCD and 5×7 font, LED billboard
 src/ui/screens.ts      LCD pages: Recall, Store, parameter list, Utility
 src/rom.ts             names of the 225 ROM presets (from the manual)
+src/clock.ts           tempo from incoming MIDI clock
 docs/G-Force_Manual_EN.pdf  TC Electronic owner's manual
 docs/SYSEX_FORMAT.md   the dump format, as recovered
 docs/samples/          User bank dumps from a real G-Force

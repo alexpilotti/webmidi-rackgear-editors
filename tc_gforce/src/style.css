@@ -279,6 +279,8 @@ button { font: inherit; color: inherit; }
 }
 .num-input:focus { outline: 1px solid #39f; outline-offset: -1px; }
 .num-field.invalid .num-input { color: #ff5a4a; }
+.num-field.disabled { opacity: 0.4; }
+.num-field.disabled .num-btn { cursor: default; }
 .field { display: flex; align-items: center; gap: 6px; }
 .field .silk { width: 48px; }
 .field select {
@@ -288,6 +290,35 @@ button { font: inherit; color: inherit; }
   font-size: 11px; padding: 3px 4px;
 }
 .midi-actions { display: grid; grid-template-columns: repeat(2, 120px); gap: 6px; }
+
+/* ------------------------------------------------------------------ tempo dialog */
+
+.tempo-dialog {
+  width: 760px; max-width: calc(100vw - 32px);
+  padding: 16px 18px;
+  border: 1px solid #000; border-radius: 3px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 20%), var(--panel);
+  color: var(--silk);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+}
+.tempo-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+.dlg-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 14px; }
+.dlg-close { margin-left: auto; align-self: center; width: 26px; height: 26px; border: 1px solid #444; border-radius: 2px; background: #2a2b2e; cursor: pointer; }
+.dlg-close:hover { border-color: #888; }
+.dlg-ctls { display: flex; gap: 22px; align-items: flex-start; margin-bottom: 12px; }
+.tempo-info { font-family: Menlo, Consolas, monospace; font-size: 11px; color: #ff8a6e; }
+.tempo-ctl { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.tempo-ctl .num-field { height: 26px; }
+.tempo-ctl .num-input { width: 44px; font-size: 13px; }
+.tempo-ctl .rack-btn { height: 26px; padding: 0 16px; }
+.tempo-ctl select { height: 26px; background: #0d0d0d; color: #e6e6e0; border: 1px solid #444; border-radius: 2px; font-size: 11px; padding: 0 4px; }
+.tempo-note { font-size: 9px; color: var(--silk-dim); }
+.clock-check { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.tempo-ctl select[aria-label='MIDI clock input'] { width: 150px; }
+.tempo-info.waiting { color: var(--led-amber); }
+.tempo-help { padding: 8px 12px; border: 1px solid #333; border-radius: 2px; background: #121214; display: flex; flex-direction: column; gap: 3px; }
+.tempo-steps { margin: 0; padding-left: 16px; font-size: 11px; line-height: 1.45; color: #d9d9d4; }
+.tempo-steps b { color: #fff; }
 .rack-btn {
   font-size: 9px; font-weight: 700; letter-spacing: 0.05em;
   height: 30px;
@@ -431,3 +462,13 @@ button { font: inherit; color: inherit; }
 .home-btn:hover { background: linear-gradient(#5a5b60, #38393d); border-color: #8fbde6; }
 .home-btn:focus-visible { outline: 2px solid #8fbde6; outline-offset: 2px; }
 .home-btn:active { box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6); }
+
+/* Tempo dialog columns: label row, control row, note row, all aligned. */
+.tempo-dialog .tempo-ctl { display: grid; grid-template-rows: 16px 28px 14px; row-gap: 5px; align-items: center; justify-items: start; }
+.tempo-dialog .tempo-ctl > .silk, .tempo-dialog .clock-check { height: 16px; line-height: 16px; font-size: 10px; }
+.tempo-dialog .clock-check input { width: 12px; height: 12px; margin: 0; }
+.tempo-dialog .tempo-ctl .num-field,
+.tempo-dialog .tempo-ctl select,
+.tempo-dialog .tempo-ctl .rack-btn { height: 28px; box-sizing: border-box; }
+.tempo-dialog .tempo-ctl select { font-size: 12px; padding: 0 6px; }
+.tempo-dialog .tempo-note { line-height: 14px; }

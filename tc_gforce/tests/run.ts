@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { BLOCK_LEN, codecFromInstance, joinMessages, splitSysex } from '../src/codec.ts';
 import { ROM_NAMES } from '../src/rom.ts';
+import { ClockMeter } from '../src/clock.ts';
 import { Bank, bankProgram, recallBankProgram, romIndex, cardIndex, HEADER_SIZE, userIndex, NAME_LEN, PARAMS, Preset, RECORD_SIZE, SLOTS } from '../src/model.ts';
 
 let failures = 0;
@@ -215,6 +216,38 @@ test('ROM names: 225 from the manual, ROM 5 is Mono Doubler', () => {
   eq(ROM_NAMES.length, 225);
   eq(ROM_NAMES[4], 'Mono Doubler');
   eq(ROM_NAMES[224], 'Empty Routing');
+});
+
+console.log('clock');
+
+const feed = (m: ClockMeter, bpm: number, ticks: number, start = 0) => {
+  const dt = 60000 / bpm / 24;
+  let r: number | null = null;
+  for (let i = 0; i < ticks; i++) r = m.tick(start + i * dt);
+  return r;
+};
+
+test('no tempo before one beat of clock', () => {
+  const m = new ClockMeter();
+  eq(feed(m, 120, 24), null);
+  eq(Math.round(feed(m, 120, 25)! * 10) / 10, 120);
+});
+
+test('clock tempo is measured over two beats, with jitter', () => {
+  for (const bpm of [20, 87.5, 120, 174, 300]) {
+    const m = new ClockMeter();
+    const dt = 60000 / bpm / 24;
+    let r: number | null = null;
+    for (let i = 0; i < 60; i++) r = m.tick(i * dt + (i % 2 ? 0.8 : -0.8));
+    if (Math.abs(r! - bpm) > 0.2) throw new Error(`${bpm}: got ${r}`);
+  }
+});
+
+test('a gap in the clock starts the measurement again', () => {
+  const m = new ClockMeter();
+  feed(m, 120, 40);
+  eq(m.tick(100000), null);
+  eq(feed(m, 90, 25, 100000) !== null, true);
 });
 
 if (failures) {
