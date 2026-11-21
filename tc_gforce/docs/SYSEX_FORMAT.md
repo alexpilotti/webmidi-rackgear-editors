@@ -80,7 +80,13 @@ The checklist of parameters still to find, and the method, is in
 `gforce-rom-50.syx` holds ROM 1–50 copied unedited to User 1–50. The map below
 comes from comparing those 50 records with the manual's preset list
 (descriptions, Mono / Stereo / 3-Way, pedal column). Single-change pairs are
-still needed to confirm it. The routing grid is the most certain part.
+still needed to confirm it. The routing grid is the most certain part:
+photos of the unit's Effects display for ROM 1–7 and 9 show exactly the
+decoded routings (1 CPR → REV; 2 CPR → REV ∥ CHO; 3 CPR → REV ∥ DLY;
+4 CPR → REV ∥ PIT ∥ DLY; 5 CPR → REV ∥ PIT; 6 PAN → REV;
+7 PIT → CPR → FIL → REV; 9 CPR → DRV → REV). Every block code is now seen on
+the unit, with its box name: 4 CPR, 5 FIL, 6 PAN, 7 PIT, 8 DLY, 9 DRV, 10 CHO,
+11 REV.
 
 | Offset | Size | Meaning | Evidence |
 |---|---|---|---|
@@ -92,10 +98,10 @@ still needed to confirm it. The routing grid is the most certain part.
 | `0x0AE` | 146 | zero in all 50 | constant |
 | `0x140` | ~38 | *Guess:* global or In/Out section; mostly constant | |
 | `0x166` | 20 | **Compressor**; `0x166` = sub-algorithm (0 Simple, 1 Advanced) | 1 only in Rhythm presets 40–47, 50 |
-| `0x17A` | 34 | **Filters**; `0x17A` = sub-algorithm: 0 Parametric EQ (38 Go Direct "EQ"), 2 in both Touchwahs, 4 Phaser (8, 12). *Guess:* manual order | |
+| `0x17A` | 34 | **Filters**; `0x17A` = sub-algorithm: **2 = WAH-WAH** (photo, ROM 7). *Guess:* 0 Parametric EQ (38 Go Direct "EQ"), 4 Phaser (8, 12); 1 and 3 unknown. Not the manual's order. `0x17B` = MIX LEVEL % (35, photo), `0x187` = Wah FREQ ×100 (45 = 0.45, photo) | ROM 7 photo |
 | `0x19C` | 22 | **Pan+Trem**; `0x19C` = sub-algorithm: 0 Tremolo, 1 Tremolo Advanced (12), 2 Panner (34 "subtle slow panning"), 3 Surround Panner (15 "pans beyond a normal stereo image") | manual order fits all |
 | `0x1B2` | 36 | **Pitch**; `0x1B2` = sub-algorithm: 0 Intelligent (Harmony presets), 1 one voice (11/25 "lower octave", 33 "octave up"), 2 two voices, 3 Detune (all Doubler presets) | |
-| `0x1D6` | ~50 | **Delay**; `0x1D6` = sub-algorithm 0–4 (*guess:* Stereo, Dual, Dual Two-tap, One-tap, Quad-tap; 29 Slap+Slow = 2 Dual Two-tap) | |
+| `0x1D6` | ~50 | **Delay**; `0x1D6` = sub-algorithm: **4 = ONE-TAP** (photo, ROM 3). *Guess:* 2 Dual Two-tap (29 Slap+Slow); 0, 1, 3 unknown. Not the manual's order. One-Tap: `0x1E3` = TIME, 16-bit little-endian ms (`36 01` = 310, photo), `0x1EE` = FEEDBACK % (24, photo). `0x1E5`, `0x1E7`, `0x1E9` hold further 16-bit times (300, 350, 144 ms on ROM 3), likely the other taps' | ROM 3 photo |
 | `0x208` | ~38 | **Drive** (no sub-algorithms); `0x214`–`0x217` differ only in presets 9, 22, 44, which route the Drive | |
 | `0x22E` | 24 | **Chorus/Flanger**; `0x22E` = sub-algorithm: 0 Classic Chorus, 1 Advanced Chorus, 2 Classic Flanger, 3 Advanced Flanger (44 "flanging") | manual order fits |
 | `0x246` | 32 | **Reverb**; `0x246` = sub-algorithm, 1 = Advanced (photo of Mono Reverb), *guess:* 0 = Simple. `0x253` = DECAY TIME | |

@@ -5,10 +5,10 @@
 // The samples in docs/samples/ are User bank dumps from a real G-Force.
 import { readFileSync } from 'node:fs';
 import { BLOCK_LEN, codecFromInstance, joinMessages, splitSysex } from '../src/codec.ts';
-import { ROM_NAMES } from '../src/rom.ts';
+import { ROM_BLOCKS, ROM_NAMES } from '../src/rom.ts';
 import { ClockMeter } from '../src/clock.ts';
 import { GCARD_NAMES } from '../src/gcard.ts';
-import { Bank, bankProgram, recallBankProgram, romIndex, cardIndex, HEADER_SIZE, ROUTED, ROUTING_COLS, ROUTING_ROWS, userIndex, NAME_LEN, PARAMS, Preset, RECORD_SIZE, SLOTS } from '../src/model.ts';
+import { Bank, bankProgram, recallBankProgram, romIndex, cardIndex, HEADER_SIZE, ROUTED, routedBlock, ROUTING_COLS, ROUTING_ROWS, userIndex, NAME_LEN, PARAMS, Preset, RECORD_SIZE, SLOTS } from '../src/model.ts';
 
 let failures = 0;
 const test = (name: string, fn: () => void) => {
@@ -243,24 +243,46 @@ const routing = (n: number) => {
 };
 const sub = (n: number, block: string) => romBank.preset(n - 1).subAlgo(ROUTED.find((b) => b.block === block)!);
 
-test('routing grid of ROM presets matches the preset list', () => {
+test('routing grid of ROM presets matches the unit (photos of ROM 1–7, 9)', () => {
+  const names = (n: number) => routing(n).replace(/\d+/g, (d) => routedBlock(+d)?.short ?? d);
+  eq(names(7), 'PIT | CPR | FIL | REV');
+  eq(names(6), 'PAN | REV');
   eq(routing(1), '4 | 11'); // Mono Reverb: Compressor → Reverb
   eq(routing(4), '4 | 11/7/8'); // Mono Harmony: Compressor → Reverb ∥ Pitch ∥ Delay
-  eq(routing(9), '4 | 9 | 11'); // Mono Crank it Up: Drive in the middle
+  eq(routing(6), '6 | 11'); // photo: PAN → REV
+  eq(routing(7), '7 | 4 | 5 | 11'); // photo: PIT → CPR → FIL → REV
+  eq(routing(9), '4 | 9 | 11'); // photo: CPR → DRV → REV
   eq(routing(11), '4 | 7/1 | 1 | 11/10'); // Mono Pedal Pitch: a pipeline beside the Pitch
   eq(routing(31), '11/10/8/7'); // 3-Way: all in parallel
   eq(routing(38), '-/4 | -/5'); // Go Direct: "EQ & Compression"
 });
 
-test('sub-algorithms of ROM presets match the preset list', () => {
+test('sub-algorithms of ROM presets: names seen on the unit, guesses marked', () => {
   eq(sub(1, 'reverb'), 'ADVANCED'); // photo: REVERB - ADVANCED
-  eq(sub(5, 'pitch'), 'DETUNE'); // Mono Doubler
-  eq(sub(4, 'pitch'), 'INTELLIGENT'); // Mono Harmony
-  eq(sub(15, 'pantrem'), 'SURROUND PANNER'); // pans beyond a normal stereo image
-  eq(sub(8, 'filters'), 'PHASER');
-  eq(sub(38, 'filters'), 'PARAMETRIC EQ');
-  eq(sub(44, 'chorus'), 'ADVANCED FLANGER'); // Power Chord, "some flanging"
+  eq(sub(7, 'filters'), 'WAH-WAH'); // photo: FILTER - WAH-WAH
+  eq(sub(3, 'delay'), 'ONE-TAP'); // photo: DELAY - ONE-TAP
+  eq(sub(5, 'pitch'), 'DETUNE?'); // Mono Doubler
+  eq(sub(4, 'pitch'), 'INTELLIGENT?'); // Mono Harmony
+  eq(sub(15, 'pantrem'), 'SURROUND PANNER?'); // pans beyond a normal stereo image
+  eq(sub(8, 'filters'), 'PHASER?');
+  eq(sub(38, 'filters'), 'PARAMETRIC EQ?');
+  eq(sub(44, 'chorus'), 'ADVANCED FLANGER?'); // Power Chord, "some flanging"
   eq(sub(9, 'drive'), ''); // no sub-algorithms
+});
+
+test('ROM_BLOCKS matches the ROM 1–50 dump; ROM 7 as on the unit\'s Recall page', () => {
+  eq(ROM_BLOCKS.length, 50);
+  for (let i = 0; i < 50; i++) eq(ROM_BLOCKS[i], romBank.preset(i).blockMask(), `ROM ${i + 1}`);
+  // Photo of Recall, preset 7 Mono Touchwah: SELECT shows CPR FIL / PIT / REV.
+  eq(ROUTED.filter((_, k) => ROM_BLOCKS[6] & (1 << k)).map((r) => r.short).join(' '), 'CPR FIL PIT REV');
+});
+
+test('values seen on the unit (photos) sit in their block', () => {
+  const r7 = romBank.preset(6), r3 = romBank.preset(2);
+  eq(r7.byte(0x17b), 35); // FILTER - WAH-WAH: MIX LEVEL 35 %
+  eq(r7.byte(0x187), 45); // FREQ 0.45
+  eq(r3.byte(0x1e3) | (r3.byte(0x1e4) << 8), 310); // DELAY - ONE-TAP: TIME 310 ms
+  eq(r3.byte(0x1ee), 24); // FEEDBACK 24 %
 });
 
 test('G-Card names: banks of 100, 100 and 45 from its manual', () => {

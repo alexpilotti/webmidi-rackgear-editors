@@ -55,16 +55,27 @@ export function presetPage(lcd: GraphicLcd, o: {
   lcd.text(2, 84, o.name, { scale: 2 });
 }
 
-/** SELECT grid: 3×3 cells, ALL selected (the editor doesn't decode the blocks yet). */
-export function selectGrid(lcd: GraphicLcd, x: number, y: number, w: number, h: number): void {
-  lcd.frame(x, y, w, h);
-  const cw = Math.floor(w / 3), ch = Math.floor(h / 3);
-  for (let i = 1; i < 3; i++) {
-    lcd.fill(x + i * cw, y, 1, h);
-    lcd.fill(x, y + i * ch, w, 1);
-  }
-  lcd.fill(x + 1, y + 1, cw - 1, ch - 1);
-  lcd.text(x + 5, y + 4, 'ALL', { on: false });
+/**
+ * SELECT grid of the Recall page, as on the unit: 3 × 3 cells, ALL (selected,
+ * inverted) then the eight blocks at fixed places in block-code order
+ * (CPR FIL / PAN PIT DLY / DRV CHO REV). `cells` holds the 8 block labels,
+ * '' for a block the preset doesn't use.
+ */
+export function selectGrid(cells: string[]) {
+  return (lcd: GraphicLcd, x: number, y: number, w: number, h: number): void => {
+    lcd.frame(x, y, w, h);
+    const cw = Math.floor(w / 3), ch = Math.floor(h / 3);
+    for (let i = 1; i < 3; i++) {
+      lcd.fill(x + i * cw, y, 1, h);
+      lcd.fill(x, y + i * ch, w, 1);
+    }
+    ['ALL', ...cells].forEach((t, i) => {
+      if (!t) return;
+      const cx = x + (i % 3) * cw, cy = y + Math.floor(i / 3) * ch;
+      if (i === 0) lcd.fill(cx + 1, cy + 1, cw - 1, ch - 1);
+      lcd.text(cx + 1 + Math.round((cw - 1 - GraphicLcd.measure(t)) / 2), cy + Math.round((ch - 7) / 2), t, { on: i !== 0 });
+    });
+  };
 }
 
 /** Lines of small text in a box (used on the Store page). */
@@ -198,36 +209,67 @@ function tabbedTitle(lcd: GraphicLcd, text: string, tabs: string[], tab: number)
 export type GridCell = { kind: 'block'; text: string } | { kind: 'pipe' } | { kind: 'empty' };
 
 /**
- * Effects → Routing, after the unit's Routing display: the 4 × 8 grid with a
- * box per block, a line for a pipeline cell and a dot for an empty one. The
- * cell under the cursor is inverted; the line below describes it.
+ * The Effects display, as on the unit: "Eff." with the MIX / EDIT / ROUTING /
+ * LAYOUT tabs, an In bar on the left and an OUT bar on the right, and the
+ * 8 × 4 routing grid between them. Blocks are double-framed boxes; wires run
+ * from In to the first column, through a vertical bus into each parallel
+ * block, and from the last column's blocks to OUT. Pipeline cells are wires;
+ * empty cells are blank. The cell under the cursor is inverted.
  */
 export function routingPage(lcd: GraphicLcd, o: {
-  title: string; tabs: string[]; tab: number;
+  tabs: string[]; tab: number;
   /** cells[column][row] */
   cells: GridCell[][];
-  cursor: { c: number; r: number };
-  footer: string;
+  cursor: { c: number; r: number } | null;
 }): void {
   lcd.clear();
-  tabbedTitle(lcd, o.title, o.tabs, o.tab);
-  const cw = 30, ch = 15, x0 = 0, y0 = 22;
+  tabbedTitle(lcd, 'Eff.', o.tabs, o.tab);
+  // In and OUT bars, full height, with vertical labels.
+  const barTop = 21, barH = LCD_H - barTop - 1;
+  lcd.frame(0, barTop, 10, barH);
+  lcd.frame(LCD_W - 10, barTop, 10, barH);
+  ['I', 'n'].forEach((ch, i) => lcd.text(3, barTop + 3 + i * 8, ch));
+  ['O', 'U', 'T'].forEach((ch, i) => lcd.text(LCD_W - 7, barTop + 3 + i * 8, ch));
+
+  const pitch = 27, x0 = 12, bw = 20, bh = 13, rowH = 19, y0 = 22;
+  const bx = (c: number) => x0 + c * pitch + 5; // block left edge
+  const bus = (c: number) => bx(c) - 3;
+  const ym = (r: number) => y0 + r * rowH + 6;
+  const hline = (xa: number, xb: number, y: number) => { if (xb > xa) lcd.fill(xa, y, xb - xa, 1); };
+
+  const used = o.cells.map((col) => col.map((cell, r) => (cell.kind === 'empty' ? -1 : r)).filter((r) => r >= 0));
+  const cols = used.map((rows, c) => (rows.length ? c : -1)).filter((c) => c >= 0);
+
+  // Wires.
+  let src: { x: number; rows: number[] } = { x: 10, rows: [0] };
+  for (const c of cols) {
+    const rows = used[c];
+    const all = [...rows, ...src.rows];
+    for (const r of src.rows) hline(src.x, bus(c) + 1, ym(r));
+    lcd.fill(bus(c), ym(Math.min(...all)), 1, ym(Math.max(...all)) - ym(Math.min(...all)) + 1);
+    for (const r of rows) hline(bus(c), bx(c), ym(r));
+    src = { x: bx(c) + bw + 1, rows };
+  }
+  for (const r of src.rows) hline(src.x, LCD_W - 10, ym(r));
+
+  // Cells.
   o.cells.forEach((col, c) => col.forEach((cell, r) => {
-    const x = x0 + c * cw, y = y0 + r * ch;
-    const sel = o.cursor.c === c && o.cursor.r === r;
-    if (sel) lcd.fill(x, y, cw - 2, ch - 2);
-    const on = !sel;
+    const x = bx(c), y = y0 + r * rowH;
+    const sel = o.cursor?.c === c && o.cursor?.r === r;
     if (cell.kind === 'block') {
-      if (!sel) lcd.frame(x, y, cw - 2, ch - 2);
-      lcd.text(x + Math.round((cw - 2 - GraphicLcd.measure(cell.text)) / 2), y + 3, cell.text, { on });
+      lcd.fill(x, y, bw + 1, bh + 1, false);
+      lcd.frame(x, y, bw, bh);
+      lcd.fill(x + bw, y + 1, 1, bh); // shadow edge, as on the unit
+      lcd.fill(x + 1, y + bh, bw, 1);
+      if (sel) lcd.fill(x + 1, y + 1, bw - 2, bh - 2);
+      lcd.text(x + Math.round((bw - GraphicLcd.measure(cell.text)) / 2), y + 3, cell.text, { on: !sel });
     } else if (cell.kind === 'pipe') {
-      lcd.fill(x, y + 6, cw - 2, 1, on);
-    } else {
-      lcd.fill(x + 13, y + 6, 2, 1, on);
+      hline(x - 1, x + bw + 1, ym(r));
+      if (sel) lcd.frame(x, y, bw, bh);
+    } else if (sel) {
+      lcd.frame(x, y, bw, bh);
     }
   }));
-  lcd.dotted(0, LCD_W - 1, y0 + 4 * ch + 1);
-  lcd.text(2, y0 + 4 * ch + 5, o.footer.slice(0, 39));
 }
 
 export interface MenuRow {

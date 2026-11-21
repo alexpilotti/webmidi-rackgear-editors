@@ -91,19 +91,24 @@ export interface RoutedBlock {
   short: string;
   /** Offset of the sub-algorithm byte, when the block has sub-algorithms. */
   subAt?: number;
-  /** Sub-algorithm names by value, in the manual's order. */
+  /** Sub-algorithm names by value ('' = unknown). Names not in `seen` are guesses. */
   subs?: string[];
+  /** Values whose name was read off the unit's LCD (photos). */
+  seen?: number[];
 }
 
 export const ROUTED: RoutedBlock[] = [
-  { code: 4, block: 'compress', short: 'CMP', subAt: 0x166, subs: ['SIMPLE', 'ADVANCED'] },
-  { code: 5, block: 'filters', short: 'FLT', subAt: 0x17a, subs: ['PARAMETRIC EQ', 'WAH WAH', 'FORMANT', 'RESONANCE', 'PHASER'] },
-  { code: 6, block: 'pantrem', short: 'P+T', subAt: 0x19c, subs: ['TREMOLO', 'TREMOLO ADV', 'PANNER', 'SURROUND PANNER'] },
+  { code: 4, block: 'compress', short: 'CPR', subAt: 0x166, subs: ['SIMPLE', 'ADVANCED'] },
+  // ROM 7 Touchwah (2) shows FILTER - WAH-WAH: not the manual's order. 0 and 4 fit EQ and Phaser presets.
+  { code: 5, block: 'filters', short: 'FIL', subAt: 0x17a, subs: ['PARAMETRIC EQ', '', 'WAH-WAH', '', 'PHASER'], seen: [2] },
+  { code: 6, block: 'pantrem', short: 'PAN', subAt: 0x19c, subs: ['TREMOLO', 'TREMOLO ADV', 'PANNER', 'SURROUND PANNER'] },
   { code: 7, block: 'pitch', short: 'PIT', subAt: 0x1b2, subs: ['INTELLIGENT', 'FIXED VOICES', '2 VOICE 2 OCT', 'DETUNE'] },
-  { code: 8, block: 'delay', short: 'DLY', subAt: 0x1d6, subs: ['STEREO', 'DUAL', 'DUAL TWO-TAP', 'ONE-TAP', 'QUAD-TAP'] },
+  // ROM 3 Mono Dyn Delay (4) shows DELAY - ONE-TAP. 2 fits 29 Slap+Slow Dly (two taps).
+  { code: 8, block: 'delay', short: 'DLY', subAt: 0x1d6, subs: ['STEREO', 'DUAL', 'DUAL TWO-TAP', 'QUAD-TAP', 'ONE-TAP'], seen: [4] },
   { code: 9, block: 'drive', short: 'DRV' },
   { code: 10, block: 'chorus', short: 'CHO', subAt: 0x22e, subs: ['CLASSIC CHORUS', 'ADVANCED CHORUS', 'CLASSIC FLANGER', 'ADVANCED FLANGER'] },
-  { code: 11, block: 'reverb', short: 'REV', subAt: 0x246, subs: ['SIMPLE', 'ADVANCED'] },
+  // ROM 1 Mono Reverb (1) shows REVERB - ADVANCED.
+  { code: 11, block: 'reverb', short: 'REV', subAt: 0x246, subs: ['SIMPLE', 'ADVANCED'], seen: [1] },
 ];
 
 export const routedBlock = (code: number): RoutedBlock | undefined => ROUTED.find((r) => r.code === code);
@@ -166,11 +171,27 @@ export class Preset {
     return this.data[ROUTING_AT + c * ROUTING_ROWS + r];
   }
 
-  /** Sub-algorithm name of a block, `SUB n` for a value past the known list, '' without sub-algorithms. */
+  /** Blocks in the routing grid: bit k = block with grid code 4 + k (as in ROM_BLOCKS). */
+  blockMask(): number {
+    let m = 0;
+    for (let i = 0; i < ROUTING_COLS * ROUTING_ROWS; i++) {
+      const v = this.data[ROUTING_AT + i];
+      if (routedBlock(v)) m |= 1 << (v - ROUTED[0].code);
+    }
+    return m;
+  }
+
+  /**
+   * Sub-algorithm name of a block: as on the unit's LCD when seen there, with
+   * a trailing '?' when it is a guess, `SUB n` when unknown, '' when the block
+   * has no sub-algorithms.
+   */
   subAlgo(b: RoutedBlock): string {
     if (b.subAt === undefined || !b.subs) return '';
     const v = this.data[b.subAt];
-    return b.subs[v] ?? `SUB ${v}`;
+    const name = b.subs[v];
+    if (!name) return `SUB ${v}`;
+    return b.seen?.includes(v) ? name : `${name}?`;
   }
 
   equals(o: Preset): boolean {

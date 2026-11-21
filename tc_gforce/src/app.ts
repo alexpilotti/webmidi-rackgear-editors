@@ -6,15 +6,15 @@ import { GfMidi } from './midi.ts';
 import { ClockMeter } from './clock.ts';
 import {
   recallBankProgram, CARD_BANKS, MAX_BANK, cardIndex, romIndex, userIndex, Bank, BLOCKS, cleanName, NAME_LEN, paramAt, PARAMS, PARAMS_AT, Preset, RECORD_SIZE, SLOTS,
-  PIPE, ROUTING_AT, ROUTING_COLS, ROUTING_ROWS, routedBlock, type BlockId, type ParamDef,
+  PIPE, ROUTED, ROUTING_AT, ROUTING_COLS, ROUTING_ROWS, routedBlock, type BlockId, type ParamDef,
 } from './model.ts';
 import { Billboard, GraphicLcd, h, Knob, NumberField, PanelKey } from './ui/components.ts';
-import { ROM_NAMES } from './rom.ts';
+import { ROM_BLOCKS, ROM_NAMES } from './rom.ts';
 import { GCARD_NAMES } from './gcard.ts';
 import { infoPage, LCD_H, LCD_W, menuPage, messageBox, paramPage, presetPage, routingPage, selectGrid, textBox, type GridCell, type ListRow } from './ui/screens.ts';
 
 /** Panel modes (owner's manual: Recall, Store, Effects/Edit, Utility). */
-type Mode = 'recall' | 'edit' | 'routing' | 'store' | 'utility' | 'io' | 'tempo' | 'receive' | 'send';
+type Mode = 'recall' | 'edit' | 'effects' | 'store' | 'utility' | 'io' | 'tempo' | 'receive' | 'send';
 
 const pad3 = (n: number) => String(n).padStart(3, '0');
 const presets = (n: number) => `${n} User preset${n === 1 ? '' : 's'}`;
@@ -116,10 +116,10 @@ export class App {
   unitSel: { bank: number; n: number } | null = null;
   storeTarget = 0;
   cursor = PARAMS_AT;
-  /** Effects → Routing: grid cell under the cursor (column 0–7, row 0–3). */
+  /** Effects display: grid cell under the cursor (column 0–7, row 0–3). */
   routeCursor = { c: 0, r: 0 };
-  /** Effects display last shown: the unit's Effects key returns to it. */
-  private effectsPage: 'routing' | 'edit' = 'routing';
+  /** Effects display tab: EDIT (the cursor picks blocks) or ROUTING (any cell). */
+  fxTab: 'edit' | 'routing' = 'edit';
   /** Recall page field under the cursor: 0 SELECT, 1 BANK, 2 PRESET. */
   recallField = 2;
   ioTab = 0;
@@ -250,7 +250,8 @@ export class App {
         else this.edit.setByte(this.cursor, this.edit.byte(this.cursor) + step);
         return this.render();
       }
-      case 'routing':
+      case 'effects':
+        if (this.fxTab === 'edit') return this.turnParameter(delta, fast);
         return this.flash('ROUTING IS SHOWN ONLY: CHANGE IT ON THE G-FORCE');
       case 'utility':
       case 'io':
@@ -275,11 +276,21 @@ export class App {
       return this.render();
     }
     if (this.isMenu) return this.moveMenu(delta);
-    if (this.mode === 'routing') {
+    if (this.mode === 'effects') {
       // Column by column, like the unit's cursor ("third position of the first column").
+      // EDIT stops on blocks only; ROUTING on every cell.
       const n = ROUTING_COLS * ROUTING_ROWS;
-      const i = (this.routeCursor.c * ROUTING_ROWS + this.routeCursor.r + (fast ? delta * ROUTING_ROWS : delta) + n * 10) % n;
-      this.routeCursor = { c: Math.floor(i / ROUTING_ROWS), r: i % ROUTING_ROWS };
+      const at = (i: number) => ({ c: Math.floor(i / ROUTING_ROWS), r: i % ROUTING_ROWS });
+      let i = this.routeCursor.c * ROUTING_ROWS + this.routeCursor.r;
+      if (this.fxTab === 'routing') {
+        i = (i + (fast ? delta * ROUTING_ROWS : delta) + n * 10) % n;
+      } else {
+        const blocks = this.blockCells();
+        if (!blocks.length) return this.render();
+        const k = blocks.indexOf(i);
+        i = k < 0 ? blocks.find((b) => b >= i) ?? blocks[0] : blocks[(k + delta + blocks.length * 10) % blocks.length];
+      }
+      this.routeCursor = at(i);
       return this.render();
     }
     if (this.mode === 'recall') {
@@ -319,15 +330,34 @@ export class App {
     this.render();
   }
 
-  /** EFFECTS: back to the Effects display shown last (Routing or Edit). */
+  /** EFFECTS: the Effects display (block diagram), on the tab shown last. */
   pressEffects(): void {
     if (this.busy) return;
-    if (this.mode !== 'edit' && this.mode !== 'routing') this.mode = this.effectsPage;
+    this.mode = 'effects';
+    if (this.fxTab === 'edit') this.snapToBlock();
     this.render();
   }
 
   private get isEffects(): boolean {
-    return this.mode === 'edit' || this.mode === 'routing';
+    return this.mode === 'edit' || this.mode === 'effects';
+  }
+
+  /** Grid cells (index = column × 4 + row) holding a block, in cursor order. */
+  private blockCells(): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < ROUTING_COLS * ROUTING_ROWS; i++) {
+      if (routedBlock(this.edit.cell(Math.floor(i / ROUTING_ROWS), i % ROUTING_ROWS))) out.push(i);
+    }
+    return out;
+  }
+
+  /** On the EDIT tab the cursor sits on a block: move it to the next one if it doesn't. */
+  private snapToBlock(): void {
+    const blocks = this.blockCells();
+    const i = this.routeCursor.c * ROUTING_ROWS + this.routeCursor.r;
+    if (!blocks.length || blocks.includes(i)) return;
+    const j = blocks.find((b) => b >= i) ?? blocks[0];
+    this.routeCursor = { c: Math.floor(j / ROUTING_ROWS), r: j % ROUTING_ROWS };
   }
 
   pressUtility(): void {
@@ -346,9 +376,10 @@ export class App {
 
   /** ◄ ► keys: switch the pages of a display (I/O Setup, Utility); elsewhere they step like PARAMETER. */
   pressArrow(delta: number): void {
-    if (this.isEffects) {
-      this.mode = this.mode === 'edit' ? 'routing' : 'edit';
-      this.effectsPage = this.mode;
+    if (this.mode === 'effects') {
+      // EDIT ↔ ROUTING. MIX and LAYOUT are on the unit only.
+      this.fxTab = this.fxTab === 'edit' ? 'routing' : 'edit';
+      if (this.fxTab === 'edit') this.snapToBlock();
       return this.render();
     }
     if (this.mode === 'io') {
@@ -564,6 +595,11 @@ export class App {
   pressExit(): void {
     if (this.mode === 'receive') return this.cancelReceive();
     if (this.mode === 'send') return;
+    // EXIT leaves the Edit parameter display back to the Effects display, as on the unit.
+    if (this.mode === 'edit') {
+      this.mode = 'effects';
+      return this.render();
+    }
     this.mode = 'recall';
     this.recallTarget = this.selectedIn(this.view);
     this.render();
@@ -575,7 +611,7 @@ export class App {
         return this.recallAt(this.view, this.recallTarget);
       case 'store':
         return this.storeTo(this.storeTarget);
-      case 'routing': {
+      case 'effects': {
         // ENTER on a block opens its data at the sub-algorithm byte (raw Edit).
         const b = routedBlock(this.edit.cell(this.routeCursor.c, this.routeCursor.r));
         if (!b) return this.flash('NO BLOCK HERE');
@@ -1147,7 +1183,7 @@ export class App {
       h('div', { class: 'ctl-grid' },
         this.key('recall', 'RECALL', () => this.pressRecall(), 'Recall: turn VALUE to choose a User preset, ENTER loads it (R)'),
         this.key('store', 'STORE', () => this.pressStore(), 'Store: turn VALUE to choose the slot, ENTER stores (S)'),
-        this.key('effects', 'EFFECTS', () => this.pressEffects(), 'Effects: ◄ ► switch Routing (the grid, ENTER opens a block) and Edit (PARAMETER moves through the preset bytes, VALUE changes them) (E)'),
+        this.key('effects', 'EFFECTS', () => this.pressEffects(), 'Effects: the block diagram. ◄ ► switch EDIT (PARAMETER picks a block, ENTER opens its data) and ROUTING (any cell). In the data, PARAMETER moves through the bytes, VALUE changes them, EXIT goes back (E)'),
         this.key('mod', 'MOD', () => this.notInEditor('MODIFIERS'), 'Modifiers (not decoded yet)'),
         this.key('io', 'I/O SETUP', () => this.pressIo(), 'I/O Setup: MIDI settings of the editor (◄ ► for CONTROL and AUDIO) (I)'),
         this.key('utility', 'UTILITY', () => this.pressUtility(), 'Utility: send or receive the User bank (U)')));
@@ -1188,10 +1224,33 @@ export class App {
       cell('state', 'State')), this.ear());
   }
 
+  /**
+   * SELECT grid labels for preset t of bank b: the blocks it routes, from the
+   * User preset's data or, for ROM 1–50, from ROM_BLOCKS. Blank when unknown.
+   */
+  private blockLabels(b: number, t: number): string[] {
+    const mask = b === USER ? (this.bank.used(t) ? (t === this.current ? this.edit : this.bank.preset(t)).blockMask() : 0)
+      : b === ROM ? ROM_BLOCKS[t] ?? 0 : 0;
+    return ROUTED.map((r, k) => (mask & (1 << k) ? r.short : ''));
+  }
+
+  /** The Effects cursor cell in words: position, block and sub-algorithm. */
+  private cellText(): string {
+    if (!this.bank.used(this.current) && !this.editDirty) return 'Empty preset';
+    const { c, r } = this.routeCursor;
+    const v = this.edit.cell(c, r);
+    const b = routedBlock(v);
+    const where = `Col ${c + 1} row ${r + 1}`;
+    if (b) {
+      const name = BLOCKS.find((x) => x.id === b.block)!.label;
+      return `${where} · ${name}${b.subs ? ` · ${this.edit.subAlgo(b)}` : ''}`;
+    }
+    return `${where} · ${v === PIPE ? 'pipeline' : v ? `code ${hex2(v)}h` : 'empty'}`;
+  }
+
   jumpTo(offset: number): void {
     if (this.busy) return;
     this.mode = 'edit';
-    this.effectsPage = 'edit';
     this.cursor = offset;
     this.render();
   }
@@ -1480,7 +1539,7 @@ export class App {
           const b = this.view, t = this.recallTarget;
           const name = b === USER ? nm(t) : b === ROM ? ROM_NAMES[t] : cardName(b, t) || '- on the card -';
           presetPage(lcd, {
-            title: 'Recall', leftLabel: 'SELECT:', left: selectGrid,
+            title: 'Recall', leftLabel: 'SELECT:', left: selectGrid(this.blockLabels(b, t)),
             bank: bankLabel(b), cardLabel: b > USER ? bankLabel(b) : 'CARD 1', focus: this.recallField, number: t + 1, name,
           });
           label = `Recall, ${bankLabel(b)} ${t + 1}: ${name}`;
@@ -1520,7 +1579,7 @@ export class App {
         label = `Edit ${p ? p.label : `byte ${this.cursor}`}: ${fmt(p, v)}`;
         break;
       }
-      case 'routing': {
+      case 'effects': {
         const e = this.edit;
         const cells: GridCell[][] = [];
         for (let c = 0; c < ROUTING_COLS; c++) {
@@ -1533,15 +1592,9 @@ export class App {
           cells.push(col);
         }
         const { c, r } = this.routeCursor;
-        const v = e.cell(c, r);
-        const b = routedBlock(v);
-        const blockLabel = b ? BLOCKS.find((x) => x.id === b.block)!.label : '';
-        const where = `C${c + 1} R${r + 1}`;
-        const footer = !this.bank.used(this.current) && !this.editDirty ? 'EMPTY PRESET'
-          : b ? `${where} ${blockLabel}${b.subs ? ': ' + e.subAlgo(b) : ''}`
-          : v === PIPE ? `${where} PIPELINE` : v ? `${where} CODE ${hex2(v)}H` : `${where} EMPTY`;
-        routingPage(lcd, { title: 'Effects', tabs: ['EDIT', 'ROUTING'], tab: 1, cells, cursor: { c, r }, footer });
-        label = `Routing of U${pad3(this.current + 1)} ${e.name}, column ${c + 1} row ${r + 1}: ${footer.slice(where.length + 1)}`;
+        const onBlock = this.fxTab === 'routing' || routedBlock(e.cell(c, r));
+        routingPage(lcd, { tabs: ['MIX', 'EDIT', 'ROUTING', 'LAYOUT'], tab: this.fxTab === 'edit' ? 1 : 2, cells, cursor: onBlock ? { c, r } : null });
+        label = `Effects ${this.fxTab === 'edit' ? 'Edit' : 'Routing'} of U${pad3(this.current + 1)} ${e.name}: ${this.cellText()}`;
         break;
       }
       case 'utility':
@@ -1602,7 +1655,7 @@ export class App {
     set('io', this.mode === 'io' ? 'on' : 'off');
     set('enter', this.mode === 'store' || (this.mode === 'utility' && !!this.menuItems()[this.utilCursor]?.enter) || (this.mode === 'recall' && (this.view !== USER || this.recallTarget !== this.current)) ? 'flash' : 'off');
     const p = paramAt(this.cursor);
-    const routed = this.mode === 'routing' ? routedBlock(this.edit.cell(this.routeCursor.c, this.routeCursor.r))?.block : undefined;
+    const routed = this.mode === 'effects' ? routedBlock(this.edit.cell(this.routeCursor.c, this.routeCursor.r))?.block : undefined;
     for (const b of BLOCKS) set(b.id, (this.mode === 'edit' && p?.block === b.id) || routed === b.id ? 'on' : 'off');
   }
 
@@ -1617,7 +1670,7 @@ export class App {
       this.strip[p.id].parentElement!.classList.toggle('sel', this.mode === 'edit' && this.cursor === p.offset);
     }
     const v = this.edit.byte(this.cursor), s = this.bank.preset(this.current).byte(this.cursor);
-    this.strip.byte.textContent = `${this.cursor} · ${hex2(v)}h · ${v}`;
+    this.strip.byte.textContent = this.mode === 'effects' ? this.cellText() : `${this.cursor} · ${hex2(v)}h · ${v}`;
     this.strip.stored.textContent = `${hex2(s)}h · ${s}`;
     const unsent = this.slotUnsent(this.current);
     this.strip.state.textContent = this.editDirty ? 'Edited · not stored' : unsent ? 'Stored · not sent' : used ? 'Stored' : 'Empty slot';

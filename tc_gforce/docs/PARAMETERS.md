@@ -105,7 +105,7 @@ the routing grid (4 × 8). The Tempo parameters take Ignored or a note value
 
 | Parameter | Range / values | LCD name | Offset | Evidence |
 |---|---|---|---|---|
-| Mix | % ? | | | |
+| Mix | % ? | MIX LEVEL | sub-algorithm byte + 1 (Filters `0x17B`) | ROM 7 photo: 35 %. *Guess* for the other blocks: the byte after each sub-algorithm byte reads 0–100 in all 50 presets |
 | In Level | dB ? | | | |
 | Out Level | dB ? | | | |
 | Mute mode | Mix 0% · FX Out · Output · FX In · Input | | | |
@@ -144,8 +144,8 @@ Sub-algorithms: Parametric EQ, Wah Wah, Formant, Resonance, Phaser.
 | Freq 1–5 | Hz ? | Parametric EQ | | | |
 | Slope/BW 1–5 | ? (1, 5 shelving slope; 2–4 bandwidth) | Parametric EQ | | | |
 | Gain 1–5 | ±12 dB | Parametric EQ | | | |
-| Freq | Hz ? | Wah Wah | | | |
-| Instrument mode | Guitar · Bass | Wah Wah | | | |
+| Freq | 0–1 ? (LCD: `0.45`) | Wah Wah | FREQ | `0x187` (×100) | ROM 7 photo: 0.45 = 45 |
+| Instrument mode | Guitar · Bass | Wah Wah | INSTR.MODE | | ROM 7 photo: GUITAR |
 | Start | ? | Formant | | | |
 | Thru | ? | Formant | | | |
 | End | ? | Formant | | | |
@@ -212,10 +212,10 @@ Sub-algorithms: Stereo, Dual, Dual Two Tap, One Tap, Quad Tap.
 | Time | 0–740 ms | Stereo | | | |
 | Time 1, 2 | 0–740 ms | Dual | | | |
 | Time 1, 2 (per line) | 0–1480 ms | Dual Two Tap | | | |
-| Time | 0–1480 ms | One Tap | | | |
+| Time | 0–1480 ms | One Tap | TIME | `0x1E3`, 16-bit LE ms | ROM 3 photo: 310 ms = `36 01` |
 | Tap 1–4 | 0–1480 ms | Quad Tap | | | |
 | Tempo (1, 2, 1–4) | Ignored · note values | all | | | |
-| Feedback | % ? | Stereo, One Tap | | | |
+| Feedback | % ? | Stereo, One Tap | FEEDBACK | `0x1EE` (One Tap) | ROM 3 photo: 24 % |
 | Feedback 1→1, 2→2, 1→2, 2→1 | % ? (sum ≤ 100 %) | Dual | | | |
 | Feedback 1, 2 / 1–4 | % ? (sum ≤ 100 %) | Dual Two Tap, Quad Tap | | | |
 | Levels 1, 2 / 1–4 | dB ? | Dual, Dual Two Tap, Quad Tap | | | |
