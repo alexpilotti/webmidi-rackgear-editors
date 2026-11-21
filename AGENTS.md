@@ -189,9 +189,12 @@ User docs are in `tc_gforce/README.md`.
 | `src/ui/components.ts` | `Knob` (Parameter/Value wheels), `PanelKey` (key + LED), `GraphicLcd` (dot framebuffer, 5×7 font), `Billboard` (14×5 LEDs) |
 | `src/ui/screens.ts` | LCD pages drawn like the unit's: Recall, Store, parameter list, Utility |
 | `src/rom.ts` | Names of the 225 ROM presets, from the manual's preset list |
+| `src/gcard.ts` | Names of the 245 G-Card presets (card banks 1–3), from the G-Card manual's preset table |
+| `docs/388-tcelectronicGForceBrochure.pdf` | G-Card manual (software 1.13 changes, preset list); `pdftotext -layout` works |
 | `src/clock.ts` | `ClockMeter`: tempo from incoming MIDI clock, for FOLLOW MIDI CLOCK |
 | `docs/G-Force_Manual_EN.pdf` | TC owner's manual (a ManualsLib copy); has text, so `pdftotext` works. Page numbers here are the printed ones (PDF page = printed + 2): front panel pp.8–9; Recall p.17; MIDI setup and bank select pp.21–22; the blocks pp.33–51; MIDI implementation chart p.55; preset list pp.57–61 |
 | `docs/SYSEX_FORMAT.md` | The dump format, as recovered from real dumps |
+| `docs/PARAMETERS.md` | Every block, sub-algorithm and parameter from the manual, with LCD names and offsets as they are found |
 | `docs/samples/*.syx` | User bank dumps from a real unit; the tests check against them |
 
 ### G-Force rules

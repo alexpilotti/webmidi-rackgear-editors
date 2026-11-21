@@ -49,7 +49,7 @@ version as a network service, you must offer its source to its users.
 
 The manufacturer documents in the `docs/` folders are not covered by this
 license. These are the Korg A2 manuals, the Marshall JMP-1 handbook and the
-TC Electronic G-Force manual, which remain the property of their owners and
+TC Electronic G-Force and G-Card manuals, which remain the property of their owners and
 are included for reference only. The G-Force dumps in
 `tc_gforce/docs/samples/` were recorded from a real unit.
 

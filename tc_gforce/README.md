@@ -104,6 +104,9 @@ in any bank recalls it on the G-Force.
 - **CARD 1–6**: presets 1–100 (card bank 6: 1–99), by number only. The
   editor can't read what is on the card. Card presets need Fine or Coarse
   bank select.
+- **G-CARD**: with TC's G-Card in the unit, turn this on. CARD 1–3 then show
+  the card's 245 preset names (100, 100 and 45) from the preset table of its
+  manual (`src/gcard.ts`), and CARD 4–6 are hidden. The setting is kept.
 
 **Getting the bank:** press **RECEIVE BANK**, then on the G-Force go to
 **Utility → User Bank to MIDI** and press **Enter** twice. A full bank can take
@@ -199,8 +202,10 @@ src/app.ts             panel logic, modes, librarian
 src/ui/components.ts   wheels, keys, pixel LCD and 5×7 font, LED billboard
 src/ui/screens.ts      LCD pages: Recall, Store, parameter list, Utility
 src/rom.ts             names of the 225 ROM presets (from the manual)
+src/gcard.ts           names of the 245 G-Card presets (from the G-Card manual)
 src/clock.ts           tempo from incoming MIDI clock
 docs/G-Force_Manual_EN.pdf  TC Electronic owner's manual
+docs/388-tcelectronicGForceBrochure.pdf  G-Card manual and preset list
 docs/SYSEX_FORMAT.md   the dump format, as recovered
 docs/samples/          User bank dumps from a real G-Force
 tests/run.ts           tests
@@ -211,7 +216,7 @@ tests/run.ts           tests
 Copyright (C) 2026 Alessandro Pilotti
 
 `AGPL-3.0-or-later`, see the repository [LICENSE](../LICENSE).
-The owner's manual in `docs/` belongs to TC Electronic. It is included for
+The owner's manual and the G-Card manual in `docs/` belong to TC Electronic. It is included for
 reference only and is not covered by the license.
 
 TC Electronic is a trademark of MUSIC Tribe Global Brands Ltd. This editor is

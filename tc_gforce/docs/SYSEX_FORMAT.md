@@ -71,6 +71,9 @@ The name and DECAY TIME offsets come from diffing samples A–C: nothing else
 changed. *Guess:* the DECAY TIME offset is the same in every preset. The
 other presets may lay out their blocks differently.
 
+The checklist of parameters still to find, and the method, is in
+[PARAMETERS.md](PARAMETERS.md).
+
 ## Open questions
 
 - The meaning of the other 591 parameter bytes. Each needs a dump pair that

@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { BLOCK_LEN, codecFromInstance, joinMessages, splitSysex } from '../src/codec.ts';
 import { ROM_NAMES } from '../src/rom.ts';
 import { ClockMeter } from '../src/clock.ts';
+import { GCARD_NAMES } from '../src/gcard.ts';
 import { Bank, bankProgram, recallBankProgram, romIndex, cardIndex, HEADER_SIZE, userIndex, NAME_LEN, PARAMS, Preset, RECORD_SIZE, SLOTS } from '../src/model.ts';
 
 let failures = 0;
@@ -216,6 +217,12 @@ test('ROM names: 225 from the manual, ROM 5 is Mono Doubler', () => {
   eq(ROM_NAMES.length, 225);
   eq(ROM_NAMES[4], 'Mono Doubler');
   eq(ROM_NAMES[224], 'Empty Routing');
+});
+
+test('G-Card names: banks of 100, 100 and 45 from its manual', () => {
+  eq(GCARD_NAMES.map((b) => b.length), [100, 100, 45]);
+  eq([GCARD_NAMES[0][0], GCARD_NAMES[0][1], GCARD_NAMES[1][99], GCARD_NAMES[2][44]], ['Run Like Hell', 'Tremendous Delay', 'Simple Blues Delay', 'Panned Pitch']);
+  for (const b of GCARD_NAMES) for (const n of b) if (!/^[\x20-\x7e]+$/.test(n)) throw new Error(`odd name ${n}`);
 });
 
 console.log('clock');

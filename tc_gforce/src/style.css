@@ -365,6 +365,9 @@ button { font: inherit; color: inherit; }
 .bank-tab:hover { border-color: #666; }
 .bank-tab.sel { background: #ff2a1a; color: #1a0402; border-color: #ff2a1a; box-shadow: 0 0 8px rgba(255, 42, 26, 0.5); }
 .bank-tab:focus-visible { outline: 2px solid #39f; outline-offset: 1px; }
+.bank-tab[hidden] { display: none; }
+.gcard-toggle { margin-left: 14px; }
+.gcard-toggle.sel { background: #3a2508; color: var(--led-amber); border-color: var(--led-amber); box-shadow: 0 0 8px rgba(255, 178, 26, 0.35); }
 .lib-list.readonly .lib-row .name { color: #e6c9b4; }
 .lib-list {
   display: grid;

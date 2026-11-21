@@ -10,6 +10,7 @@ import {
 } from './model.ts';
 import { Billboard, GraphicLcd, h, Knob, NumberField, PanelKey } from './ui/components.ts';
 import { ROM_NAMES } from './rom.ts';
+import { GCARD_NAMES } from './gcard.ts';
 import { infoPage, LCD_H, LCD_W, menuPage, messageBox, paramPage, presetPage, selectGrid, textBox, type ListRow } from './ui/screens.ts';
 
 /** Panel modes (owner's manual: Recall, Store, Effects/Edit, Utility). */
@@ -51,8 +52,13 @@ const BANK_SIZE_MAX = 128;
 const ROM = 0;
 const USER = 1;
 const bankLabel = (b: number) => (b === ROM ? 'ROM' : b === USER ? 'USER' : `CARD ${b - 1}`);
-const bankCount = (b: number) => (b === ROM ? ROM_NAMES.length : b === USER ? SLOTS : b === CARD_BANKS + 1 ? 99 : 100);
-const BANK_TOTAL = CARD_BANKS + 2;
+/** A TC G-Card is in the unit: card banks 1–3 hold its 245 presets (names from its manual). */
+let gcard = false;
+const bankTotal = () => 2 + (gcard ? GCARD_NAMES.length : CARD_BANKS);
+const bankCount = (b: number) => (b === ROM ? ROM_NAMES.length : b === USER ? SLOTS
+  : gcard ? GCARD_NAMES[b - 2]?.length ?? 0 : b === CARD_BANKS + 1 ? 99 : 100);
+/** Name of preset n (0-based) of card bank b, when known. */
+const cardName = (b: number, n: number) => (gcard ? GCARD_NAMES[b - 2]?.[n] ?? '' : '');
 
 /** A row of a menu page (I/O Setup, Utility): values come from the editor. */
 interface MenuItem {
@@ -286,7 +292,7 @@ export class App {
   /** Switch the list and the Recall page to bank b (ROM, USER, CARD 1–6). */
   showBank(b: number): void {
     if (this.busy) return;
-    this.view = (b + BANK_TOTAL) % BANK_TOTAL;
+    this.view = (b + bankTotal()) % bankTotal();
     this.recallTarget = this.selectedIn(this.view);
     if (this.mode === 'store' || this.isMenu) this.mode = 'recall';
     this.render();
@@ -611,7 +617,7 @@ export class App {
       this.render();
       return this.error(new Error('Card presets need bank select: set BANK SEL to Fine or Coarse, as on the G-Force.'));
     }
-    const what = b === ROM ? `ROM ${p + 1} ${ROM_NAMES[p]}` : `Card bank ${b - 1} preset ${p + 1}`;
+    const what = b === ROM ? `ROM ${p + 1} ${ROM_NAMES[p]}` : `Card bank ${b - 1} preset ${p + 1}${cardName(b, p) ? ` ${cardName(b, p)}` : ''}`;
     this.sendRecall(b === ROM ? romIndex(p) : cardIndex(b - 1, p), p, what);
     this.render();
   }
@@ -931,7 +937,7 @@ export class App {
 
   private settings(): {
     input?: string; output?: string; id?: number; channel?: number; pc?: string; bankSize?: number; bpm?: number; tempoCh?: number;
-    followClock?: boolean; clockIn?: string;
+    followClock?: boolean; clockIn?: string; gcard?: boolean;
     view?: number; unitSel?: { bank: number; n: number } | null;
   } {
     try {
@@ -958,6 +964,7 @@ export class App {
         bpm: this.bpm,
         tempoCh: this.tempoCh,
         followClock: this.followClock,
+        gcard,
         clockIn: this.midi.connected ? (this.clockSel.value ? this.clockSel.selectedOptions[0]?.text : undefined) : old.clockIn,
       }));
     } catch { /* storage unavailable */ }
@@ -997,11 +1004,12 @@ export class App {
     const tc = Number(this.settings().tempoCh);
     if (Number.isInteger(tc) && tc >= TEMPO_BASIC && tc <= 15) this.tempoCh = tc;
     this.followClock = this.settings().followClock === true;
+    gcard = this.settings().gcard === true;
     this.restoreMemory();
     const v = Number(this.settings().view);
-    if (Number.isInteger(v) && v >= 0 && v < BANK_TOTAL) this.view = v;
+    if (Number.isInteger(v) && v >= 0 && v < bankTotal()) this.view = v;
     const u = this.settings().unitSel;
-    if (u && Number.isInteger(u.bank) && u.bank >= 0 && u.bank < BANK_TOTAL && Number.isInteger(u.n) && u.n >= 0 && u.n < bankCount(u.bank)) {
+    if (u && Number.isInteger(u.bank) && u.bank >= 0 && u.bank < bankTotal() && Number.isInteger(u.n) && u.n >= 0 && u.n < bankCount(u.bank)) {
       this.unitSel = { bank: u.bank, n: u.n };
       if (u.bank === USER && !this.hasData) this.current = u.n;
     }
@@ -1339,12 +1347,18 @@ export class App {
       this.libList.append(row);
     }
     const tabs = h('div', { class: 'bank-tabs', role: 'tablist', 'aria-label': 'Bank' });
-    for (let b = 0; b < BANK_TOTAL; b++) {
+    for (let b = 0; b < CARD_BANKS + 2; b++) {
       const t = h('button', { class: 'bank-tab', role: 'tab', text: bankLabel(b) });
       t.addEventListener('click', () => this.showBank(b));
       this.bankTabs.push(t);
       tabs.append(t);
     }
+    this.btns.gcard = h('button', {
+      class: 'bank-tab gcard-toggle', 'aria-pressed': 'false',
+      title: 'A TC G-Card is in the unit: show its 245 preset names in CARD 1–3 (from the G-Card manual)', text: 'G-CARD',
+    });
+    this.btns.gcard.addEventListener('click', () => this.setGCard(!gcard));
+    tabs.append(this.btns.gcard);
     this.libTitle = h('div', { class: 'midi-title' });
     this.libHelp = h('div', { class: 'silk' });
     this.btns.clear = h('button', { class: 'rack-btn', title: 'Empty the selected User slot (Delete key)' });
@@ -1353,6 +1367,16 @@ export class App {
       h('div', { class: 'lib-head' }, this.libTitle, tabs, this.btns.clear),
       this.libHelp,
       this.libList), this.ear());
+  }
+
+  /** Show (or stop showing) the G-Card's preset names in the card banks. */
+  setGCard(on: boolean): void {
+    gcard = on;
+    if (this.view >= bankTotal()) this.view = USER;
+    if (this.unitSel && (this.unitSel.bank >= bankTotal() || this.unitSel.n >= bankCount(this.unitSel.bank))) this.unitSel = null;
+    this.recallTarget = Math.min(this.recallTarget, bankCount(this.view) - 1);
+    this.saveSettings();
+    this.render();
   }
 
   private buildData(): HTMLElement {
@@ -1424,7 +1448,7 @@ export class App {
         bb = String(this.recallTarget + 1);
         {
           const b = this.view, t = this.recallTarget;
-          const name = b === USER ? nm(t) : b === ROM ? ROM_NAMES[t] : '- on the card -';
+          const name = b === USER ? nm(t) : b === ROM ? ROM_NAMES[t] : cardName(b, t) || '- on the card -';
           presetPage(lcd, {
             title: 'Recall', leftLabel: 'SELECT:', left: selectGrid,
             bank: bankLabel(b), cardLabel: b > USER ? bankLabel(b) : 'CARD 1', focus: this.recallField, number: t + 1, name,
@@ -1548,15 +1572,20 @@ export class App {
   private renderLibrary(): void {
     const b = this.view, count = bankCount(b);
     this.bankTabs.forEach((t, k) => {
+      t.hidden = k >= bankTotal();
       t.classList.toggle('sel', k === b);
       t.setAttribute('aria-selected', String(k === b));
     });
+    this.btns.gcard.classList.toggle('sel', gcard);
+    this.btns.gcard.setAttribute('aria-pressed', String(gcard));
     this.libTitle.textContent = `${bankLabel(b)} BANK`;
     this.libHelp.textContent = b === USER
       ? 'User 1–100 · click to recall on the unit and edit · double-click to rename · ✎ = edited, not stored · * = not sent to the G-Force'
       : b === ROM
         ? 'Factory presets 1–225 (names from the manual) · click to recall on the unit · read-only: the dump only carries the User bank'
-        : `Card bank ${b - 1}, presets 1–${count} · click to recall on the unit · the editor can't read card contents`;
+        : gcard
+          ? `G-Card bank ${b - 1}, presets 1–${count} (names from the G-Card manual) · click to recall on the unit · read-only card`
+          : `Card bank ${b - 1}, presets 1–${count} · click to recall on the unit · the editor can't read card contents · G-CARD shows the TC G-Card's names`;
     this.btns.clear.hidden = b !== USER;
     this.btns.clear.textContent = `CLEAR USER ${this.current + 1}`;
     this.btns.clear.disabled = this.busy || (!this.bank.used(this.current) && !this.editDirty);
@@ -1573,6 +1602,7 @@ export class App {
         name = this.presetName(i);
         flags = `${i === this.current && this.editDirty ? '✎' : ''}${this.slotUnsent(i) ? '*' : ''}`;
       } else if (b === ROM) name = ROM_NAMES[i];
+      else name = cardName(b, i);
       row.replaceChildren(
         h('span', { class: 'n', text: pad3(i + 1) }),
         h('span', { class: 'name', text: name || (b === USER ? '—' : '') }),
