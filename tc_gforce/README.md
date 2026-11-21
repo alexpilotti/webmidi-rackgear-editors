@@ -142,7 +142,7 @@ Keyboard shortcuts: `R` recall, `S` store, `E` edit, `U` utility, `I` I/O setup,
 
 ## Assumptions to verify on hardware
 
-Everything has been tested against the four dumps in `docs/samples/` and a
+Everything has been tested against the dumps in `docs/samples/` (four User banks A–D, and ROM 1–50 copied to User 1–50, which checks the ROM names) and a
 simulated unit, not against the G-Force receiving data.
 
 1. **Receiving a dump**: it isn't known whether the G-Force accepts a bank

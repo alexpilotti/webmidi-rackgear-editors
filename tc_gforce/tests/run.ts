@@ -219,6 +219,16 @@ test('ROM names: 225 from the manual, ROM 5 is Mono Doubler', () => {
   eq(ROM_NAMES[224], 'Empty Routing');
 });
 
+test('ROM names 1–50 match the unit (ROM 1–50 copied to User 1–50)', () => {
+  const dump = new Uint8Array(readFileSync(new URL('../docs/samples/gforce-rom-50.syx', import.meta.url)));
+  const bank = new Bank(codec.decodeDump(splitSysex(dump)).stream);
+  for (let i = 0; i < 50; i++) {
+    eq(bank.used(i), true);
+    eq(bank.preset(i).name.trimEnd(), ROM_NAMES[i]);
+  }
+  eq(bank.used(50), false);
+});
+
 test('G-Card names: banks of 100, 100 and 45 from its manual', () => {
   eq(GCARD_NAMES.map((b) => b.length), [100, 100, 45]);
   eq([GCARD_NAMES[0][0], GCARD_NAMES[0][1], GCARD_NAMES[1][99], GCARD_NAMES[2][44]], ['Run Like Hell', 'Tremendous Delay', 'Simple Blues Delay', 'Panned Pitch']);

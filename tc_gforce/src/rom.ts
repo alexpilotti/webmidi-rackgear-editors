@@ -2,19 +2,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Names of the 225 ROM presets, from the Preset List of the owner's manual
-// (docs/G-Force_Manual_EN.pdf, printed pp.57–61). ROM n is ROM_NAMES[n - 1].
+// (docs/G-Force_Manual_EN.pdf, printed pp.57–61). ROM 1–50 use the spelling the
+// unit stores (docs/samples/gforce-rom-50.syx). ROM n is ROM_NAMES[n - 1].
 
 export const ROM_NAMES: readonly string[] = [
-  "Mono Reverb", "Mono Chorus", "Mono Dyn Delay", "Mono Harmony C-Maj",
+  "Mono Reverb", "Mono Chorus", "Mono Dyn Delay", "Mono Harmony C-maj",
   "Mono Doubler", "Mono Tremolo", "Mono Touchwah", "Mono Phaser",
-  "Mono Crank It Up", "Mono Pedal Delay", "Mono Pedal Pitch", "Mono Farout Phaser",
+  "Mono Crank it Up", "Mono Pedal Delay", "Mono Pedal Pitch", "Mono Farout Phaser",
   "Stereo Reverb", "Stereo Chorus", "Stereo Wide Panner", "Stereo Dyn Delay",
-  "Stereo Harmony C-Maj", "Stereo Doubler", "Stereo Light Tremolo", "Stereo Summers Strum",
-  "Stereo Clean Lead", "Stereo Crank It Up", "Stereo Touchwah", "Stereo Pedal Delay",
+  "Stereo Harmony C-maj", "Stereo Doubler", "Stereo Light Tremolo", "Stereo Summers Strum",
+  "Stereo Clean Lead", "Stereo Crank it Up", "Stereo Touchwah", "Stereo Pedal Delay",
   "Stereo Pedal Pitch", "3-Way Reverb", "3-Way Chorus", "3-Way Delay Doubler",
   "3-Way Slap+Slow Dly", "3-Way Dyn Delay", "3-Way Harmony A-maj", "3-Way Doubler",
-  "3-Way Lead Octave up", "3-Way Panner", "3-Way LA's Favored", "3-Way Pedal Reverb",
-  "3-Way Pedal Octaver", "Go Direct", "Clean Rhythm Room", "Clean Notes n Chords",
+  "3-Way Lead Octave Up", "3-Way Panner", "3-Way LAs Favoured", "3-Way Pedal Reverb",
+  "3-way Pedal Octaver", "Go Direct", "Clean Rhythm Room", "Clean notes n chords",
   "Garden Party", "Love and Affection", "Arpeggiators Dream", "Power Chord",
   "For Acoustic Guitar", "Troubadour", "Sunset Groove", "Lipstick Color",
   "Nice Chorus", "Lush Chorus", "Double Jeopardy", "Tone Girdle",
