@@ -187,7 +187,7 @@ User docs are in `tc_gforce/README.md`.
 | `src/model.ts` | `Bank` (magic, 100 stored flags, 614-byte records), `Preset`, decoded `PARAMS` |
 | `src/midi.ts` | `GfMidi`: raw SysEx listener, paced sending with Web MIDI timestamps |
 | `src/ui/components.ts` | `Knob` (Parameter/Value wheels), `PanelKey` (key + LED), `GraphicLcd` (dot framebuffer, 5×7 font), `Billboard` (14×5 LEDs) |
-| `src/ui/screens.ts` | LCD pages drawn like the unit's: Recall, Store, parameter list, Utility |
+| `src/ui/screens.ts` | LCD pages drawn like the unit's: Recall, Store, parameter list, Utility, Routing |
 | `src/rom.ts` | Names of the 225 ROM presets, from the manual's preset list |
 | `src/gcard.ts` | Names of the 245 G-Card presets (card banks 1–3), from the G-Card manual's preset table |
 | `docs/388-tcelectronicGForceBrochure.pdf` | G-Card manual (software 1.13 changes, preset list); `pdftotext -layout` works |

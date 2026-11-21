@@ -174,6 +174,62 @@ export function messageBox(lcd: GraphicLcd, text: string): void {
   shown.forEach((l, i) => lcd.text(120 - GraphicLcd.measure(l) / 2, y + 6 + i * 10, l, { on: false }));
 }
 
+/** Big title, page tabs top right (the current one inverted) and a dotted rule. */
+function tabbedTitle(lcd: GraphicLcd, text: string, tabs: string[], tab: number): void {
+  lcd.text(2, 2, text, { scale: 2 });
+  let x = LCD_W;
+  for (let i = tabs.length - 1; i >= 0; i--) {
+    const w = GraphicLcd.measure(tabs[i]) + 6;
+    x -= w;
+    if (i === tab) {
+      lcd.fill(x, 2, w, 12);
+      lcd.text(x + 3, 5, tabs[i], { on: false });
+    } else {
+      lcd.frame(x, 2, w, 12);
+      lcd.frame(x + 1, 3, w - 2, 10);
+      lcd.text(x + 3, 5, tabs[i]);
+    }
+    x -= 3;
+  }
+  lcd.dotted(0, LCD_W - 1, 18);
+}
+
+/** A routing grid cell: a block's short name, the pipeline icon, or empty. */
+export type GridCell = { kind: 'block'; text: string } | { kind: 'pipe' } | { kind: 'empty' };
+
+/**
+ * Effects → Routing, after the unit's Routing display: the 4 × 8 grid with a
+ * box per block, a line for a pipeline cell and a dot for an empty one. The
+ * cell under the cursor is inverted; the line below describes it.
+ */
+export function routingPage(lcd: GraphicLcd, o: {
+  title: string; tabs: string[]; tab: number;
+  /** cells[column][row] */
+  cells: GridCell[][];
+  cursor: { c: number; r: number };
+  footer: string;
+}): void {
+  lcd.clear();
+  tabbedTitle(lcd, o.title, o.tabs, o.tab);
+  const cw = 30, ch = 15, x0 = 0, y0 = 22;
+  o.cells.forEach((col, c) => col.forEach((cell, r) => {
+    const x = x0 + c * cw, y = y0 + r * ch;
+    const sel = o.cursor.c === c && o.cursor.r === r;
+    if (sel) lcd.fill(x, y, cw - 2, ch - 2);
+    const on = !sel;
+    if (cell.kind === 'block') {
+      if (!sel) lcd.frame(x, y, cw - 2, ch - 2);
+      lcd.text(x + Math.round((cw - 2 - GraphicLcd.measure(cell.text)) / 2), y + 3, cell.text, { on });
+    } else if (cell.kind === 'pipe') {
+      lcd.fill(x, y + 6, cw - 2, 1, on);
+    } else {
+      lcd.fill(x + 13, y + 6, 2, 1, on);
+    }
+  }));
+  lcd.dotted(0, LCD_W - 1, y0 + 4 * ch + 1);
+  lcd.text(2, y0 + 4 * ch + 5, o.footer.slice(0, 39));
+}
+
 export interface MenuRow {
   label: string;
   value?: string;
@@ -188,22 +244,7 @@ export interface MenuRow {
  */
 export function menuPage(lcd: GraphicLcd, o: { title: string; tabs: string[]; tab: number; rows: MenuRow[]; cursor: number }): void {
   lcd.clear();
-  lcd.text(2, 2, o.title, { scale: 2 });
-  let x = LCD_W;
-  for (let i = o.tabs.length - 1; i >= 0; i--) {
-    const w = GraphicLcd.measure(o.tabs[i]) + 6;
-    x -= w;
-    if (i === o.tab) {
-      lcd.fill(x, 2, w, 12);
-      lcd.text(x + 3, 5, o.tabs[i], { on: false });
-    } else {
-      lcd.frame(x, 2, w, 12);
-      lcd.frame(x + 1, 3, w - 2, 10);
-      lcd.text(x + 3, 5, o.tabs[i]);
-    }
-    x -= 3;
-  }
-  lcd.dotted(0, LCD_W - 1, 18);
+  tabbedTitle(lcd, o.title, o.tabs, o.tab);
 
   const visible = 7;
   const top = Math.max(0, Math.min(o.rows.length - visible, o.cursor - 3));

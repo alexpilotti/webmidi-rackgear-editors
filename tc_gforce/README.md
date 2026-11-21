@@ -123,11 +123,11 @@ A faulty transfer can leave the User bank empty, so keep the backup.
 |---|---|
 | RECALL | as on the unit (manual p.17): PARAMETER moves the cursor between SELECT, BANK and PRESET (its label is inverted); VALUE changes that field (BANK switches ROM / USER / CARD 1–6, PRESET previews); ENTER recalls on the G-Force (a User preset is also loaded into the edit buffer). SELECT stays on ALL: partial recall is on the unit only |
 | STORE | VALUE chooses the target slot, ENTER stores the edit buffer there |
-| EFFECTS | edit mode: PARAMETER moves through the preset bytes, VALUE changes the one under the cursor |
+| EFFECTS | two pages, switched with ◄ ►; the key returns to the one shown last. **ROUTING** shows the edited User preset's 4 × 8 routing grid, as on the unit: a box per block (CMP, FLT, P+T, PIT, DLY, DRV, CHO, REV), a line for a pipeline cell. PARAMETER moves the cursor column by column, the line below names the block and its sub-algorithm, and ENTER opens the block's data at its sub-algorithm byte. The grid is read-only: change the routing on the unit. **EDIT**: PARAMETER moves through the preset bytes, VALUE changes the one under the cursor |
 | GATE … REVERB | jump to that block's decoded parameters (REVERB: DECAY TIME). Other blocks are not decoded yet. |
 | I/O SETUP | MIDI, CONTROL and AUDIO pages (◄ ►), as on the unit. The MIDI page shows and edits the editor's settings (Basic channel, Program change, Bank selection, Bank size, SysEx ID), which must match the unit's; Mapping mode must be External on the unit. CONTROL and AUDIO are listed but set on the unit only |
 | UTILITY | CONFIG and BILLBOARD pages (◄ ►), as on the unit. In CONFIG, USER BANK TO MIDI (the editor receives) and MIDI TO USER BANK (the editor sends) run with ENTER; the other items are on the unit only. Tuner MIDI Out must be Off on the unit for dumps (manual p.29) |
-| ◄ ► | switch the pages of I/O Setup and Utility; elsewhere they step like PARAMETER |
+| ◄ ► | switch the pages of Effects, I/O Setup and Utility; elsewhere they step like PARAMETER |
 | EXIT | back to RECALL; cancels a receive |
 | TEMPO | Tempo page, after the unit's (manual p.31): VALUE dials 20–300 BPM, which is sent to the G-Force; the TEMPO source channel is set here too. The key's LED blinks at the tempo |
 | BYPASS, TUNER, MOD | on the unit only |
@@ -137,7 +137,7 @@ stored value. The name field renames the edit buffer; STORE writes it. In the
 PRESET DATA grid, click a byte to put the cursor on it. Orange bytes differ
 from the stored preset.
 
-Keyboard shortcuts: `R` recall, `S` store, `E` edit, `U` utility, `I` I/O setup, `T` tempo, `Enter`,
+Keyboard shortcuts: `R` recall, `S` store, `E` effects, `U` utility, `I` I/O setup, `T` tempo, `Enter`,
 `Esc` exit, ↑/↓ and ←/→ turn the wheels, `Delete` clears the selected slot.
 
 ## Assumptions to verify on hardware
@@ -176,9 +176,18 @@ simulated unit, not against the G-Force receiving data.
 10. **Panel look**: the colours and the Recall and parameter screens follow
    photos of a real unit (yellow-green LCD, red billboard LEDs and key LEDs,
    green meters). The LCD resolution (240 × 100 dots here), the fonts and the
-   Store and Utility screens are approximations. The SELECT grid on Recall
-   only shows ALL, because the editor doesn't decode which blocks a preset
-   uses.
+   Store, Utility and Routing screens are approximations. The SELECT grid on
+   Recall only shows ALL: partial recall is on the unit only.
+11. **Routing and sub-algorithms**: found by comparing ROM 1–50
+   (`docs/samples/gforce-rom-50.syx`) with the manual's preset list, not by
+   single-change dumps (see "Record map from ROM 1–50" in
+   `docs/SYSEX_FORMAT.md`). The grid at `0x28` (8 columns × 4 rows, column by
+   column) and its block codes fit all 50 presets. The sub-algorithm names
+   assume the manual's order. Reverb ADVANCED matches a photo, and Detune,
+   Intelligent, Surround Panner, Phaser, Parametric EQ and Advanced Flanger
+   fit the preset descriptions. Two are doubtful: both Touchwah presets read
+   as FORMANT, and Mono Dyn Delay reads as QUAD-TAP. A value past the known
+   list shows as `SUB n`.
 
 Bytes the editor doesn't understand are kept exactly as received. A received
 bank that is sent back unedited is byte-identical.
@@ -200,7 +209,7 @@ src/model.ts           User bank and 614-byte preset model, decoded parameters
 src/midi.ts            Web MIDI transport
 src/app.ts             panel logic, modes, librarian
 src/ui/components.ts   wheels, keys, pixel LCD and 5×7 font, LED billboard
-src/ui/screens.ts      LCD pages: Recall, Store, parameter list, Utility
+src/ui/screens.ts      LCD pages: Recall, Store, parameter list, Utility, Routing
 src/rom.ts             names of the 225 ROM presets (from the manual)
 src/gcard.ts           names of the 245 G-Card presets (from the G-Card manual)
 src/clock.ts           tempo from incoming MIDI clock

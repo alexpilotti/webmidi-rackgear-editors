@@ -6,15 +6,15 @@ import { GfMidi } from './midi.ts';
 import { ClockMeter } from './clock.ts';
 import {
   recallBankProgram, CARD_BANKS, MAX_BANK, cardIndex, romIndex, userIndex, Bank, BLOCKS, cleanName, NAME_LEN, paramAt, PARAMS, PARAMS_AT, Preset, RECORD_SIZE, SLOTS,
-  type BlockId, type ParamDef,
+  PIPE, ROUTING_AT, ROUTING_COLS, ROUTING_ROWS, routedBlock, type BlockId, type ParamDef,
 } from './model.ts';
 import { Billboard, GraphicLcd, h, Knob, NumberField, PanelKey } from './ui/components.ts';
 import { ROM_NAMES } from './rom.ts';
 import { GCARD_NAMES } from './gcard.ts';
-import { infoPage, LCD_H, LCD_W, menuPage, messageBox, paramPage, presetPage, selectGrid, textBox, type ListRow } from './ui/screens.ts';
+import { infoPage, LCD_H, LCD_W, menuPage, messageBox, paramPage, presetPage, routingPage, selectGrid, textBox, type GridCell, type ListRow } from './ui/screens.ts';
 
 /** Panel modes (owner's manual: Recall, Store, Effects/Edit, Utility). */
-type Mode = 'recall' | 'edit' | 'store' | 'utility' | 'io' | 'tempo' | 'receive' | 'send';
+type Mode = 'recall' | 'edit' | 'routing' | 'store' | 'utility' | 'io' | 'tempo' | 'receive' | 'send';
 
 const pad3 = (n: number) => String(n).padStart(3, '0');
 const presets = (n: number) => `${n} User preset${n === 1 ? '' : 's'}`;
@@ -116,6 +116,10 @@ export class App {
   unitSel: { bank: number; n: number } | null = null;
   storeTarget = 0;
   cursor = PARAMS_AT;
+  /** Effects → Routing: grid cell under the cursor (column 0–7, row 0–3). */
+  routeCursor = { c: 0, r: 0 };
+  /** Effects display last shown: the unit's Effects key returns to it. */
+  private effectsPage: 'routing' | 'edit' = 'routing';
   /** Recall page field under the cursor: 0 SELECT, 1 BANK, 2 PRESET. */
   recallField = 2;
   ioTab = 0;
@@ -246,6 +250,8 @@ export class App {
         else this.edit.setByte(this.cursor, this.edit.byte(this.cursor) + step);
         return this.render();
       }
+      case 'routing':
+        return this.flash('ROUTING IS SHOWN ONLY: CHANGE IT ON THE G-FORCE');
       case 'utility':
       case 'io':
       case 'tempo': {
@@ -269,6 +275,13 @@ export class App {
       return this.render();
     }
     if (this.isMenu) return this.moveMenu(delta);
+    if (this.mode === 'routing') {
+      // Column by column, like the unit's cursor ("third position of the first column").
+      const n = ROUTING_COLS * ROUTING_ROWS;
+      const i = (this.routeCursor.c * ROUTING_ROWS + this.routeCursor.r + (fast ? delta * ROUTING_ROWS : delta) + n * 10) % n;
+      this.routeCursor = { c: Math.floor(i / ROUTING_ROWS), r: i % ROUTING_ROWS };
+      return this.render();
+    }
     if (this.mode === 'recall') {
       this.recallField = Math.max(0, Math.min(2, this.recallField + delta));
       return this.render();
@@ -306,10 +319,15 @@ export class App {
     this.render();
   }
 
+  /** EFFECTS: back to the Effects display shown last (Routing or Edit). */
   pressEffects(): void {
     if (this.busy) return;
-    this.mode = 'edit';
+    if (this.mode !== 'edit' && this.mode !== 'routing') this.mode = this.effectsPage;
     this.render();
+  }
+
+  private get isEffects(): boolean {
+    return this.mode === 'edit' || this.mode === 'routing';
   }
 
   pressUtility(): void {
@@ -328,6 +346,11 @@ export class App {
 
   /** ◄ ► keys: switch the pages of a display (I/O Setup, Utility); elsewhere they step like PARAMETER. */
   pressArrow(delta: number): void {
+    if (this.isEffects) {
+      this.mode = this.mode === 'edit' ? 'routing' : 'edit';
+      this.effectsPage = this.mode;
+      return this.render();
+    }
     if (this.mode === 'io') {
       this.ioTab = (this.ioTab + delta + IO_TABS.length) % IO_TABS.length;
       this.ioCursor = this.firstItem(this.ioItems());
@@ -552,6 +575,12 @@ export class App {
         return this.recallAt(this.view, this.recallTarget);
       case 'store':
         return this.storeTo(this.storeTarget);
+      case 'routing': {
+        // ENTER on a block opens its data at the sub-algorithm byte (raw Edit).
+        const b = routedBlock(this.edit.cell(this.routeCursor.c, this.routeCursor.r));
+        if (!b) return this.flash('NO BLOCK HERE');
+        return this.jumpTo(b.subAt ?? ROUTING_AT + this.routeCursor.c * ROUTING_ROWS + this.routeCursor.r);
+      }
       case 'utility':
       case 'io':
       case 'tempo': {
@@ -1118,7 +1147,7 @@ export class App {
       h('div', { class: 'ctl-grid' },
         this.key('recall', 'RECALL', () => this.pressRecall(), 'Recall: turn VALUE to choose a User preset, ENTER loads it (R)'),
         this.key('store', 'STORE', () => this.pressStore(), 'Store: turn VALUE to choose the slot, ENTER stores (S)'),
-        this.key('effects', 'EFFECTS', () => this.pressEffects(), 'Edit: PARAMETER moves through the preset bytes, VALUE changes them (E)'),
+        this.key('effects', 'EFFECTS', () => this.pressEffects(), 'Effects: ◄ ► switch Routing (the grid, ENTER opens a block) and Edit (PARAMETER moves through the preset bytes, VALUE changes them) (E)'),
         this.key('mod', 'MOD', () => this.notInEditor('MODIFIERS'), 'Modifiers (not decoded yet)'),
         this.key('io', 'I/O SETUP', () => this.pressIo(), 'I/O Setup: MIDI settings of the editor (◄ ► for CONTROL and AUDIO) (I)'),
         this.key('utility', 'UTILITY', () => this.pressUtility(), 'Utility: send or receive the User bank (U)')));
@@ -1162,6 +1191,7 @@ export class App {
   jumpTo(offset: number): void {
     if (this.busy) return;
     this.mode = 'edit';
+    this.effectsPage = 'edit';
     this.cursor = offset;
     this.render();
   }
@@ -1490,6 +1520,30 @@ export class App {
         label = `Edit ${p ? p.label : `byte ${this.cursor}`}: ${fmt(p, v)}`;
         break;
       }
+      case 'routing': {
+        const e = this.edit;
+        const cells: GridCell[][] = [];
+        for (let c = 0; c < ROUTING_COLS; c++) {
+          const col: GridCell[] = [];
+          for (let r = 0; r < ROUTING_ROWS; r++) {
+            const v = e.cell(c, r);
+            const b = routedBlock(v);
+            col.push(v === 0 ? { kind: 'empty' } : v === PIPE ? { kind: 'pipe' } : { kind: 'block', text: b ? b.short : hex2(v) });
+          }
+          cells.push(col);
+        }
+        const { c, r } = this.routeCursor;
+        const v = e.cell(c, r);
+        const b = routedBlock(v);
+        const blockLabel = b ? BLOCKS.find((x) => x.id === b.block)!.label : '';
+        const where = `C${c + 1} R${r + 1}`;
+        const footer = !this.bank.used(this.current) && !this.editDirty ? 'EMPTY PRESET'
+          : b ? `${where} ${blockLabel}${b.subs ? ': ' + e.subAlgo(b) : ''}`
+          : v === PIPE ? `${where} PIPELINE` : v ? `${where} CODE ${hex2(v)}H` : `${where} EMPTY`;
+        routingPage(lcd, { title: 'Effects', tabs: ['EDIT', 'ROUTING'], tab: 1, cells, cursor: { c, r }, footer });
+        label = `Routing of U${pad3(this.current + 1)} ${e.name}, column ${c + 1} row ${r + 1}: ${footer.slice(where.length + 1)}`;
+        break;
+      }
       case 'utility':
       case 'io':
       case 'tempo': {
@@ -1543,12 +1597,13 @@ export class App {
     const set = (id: string, s: 'off' | 'on' | 'flash') => this.keys[id]?.set(s);
     set('recall', this.mode === 'recall' ? 'on' : 'off');
     set('store', this.mode === 'store' ? 'flash' : 'off');
-    set('effects', this.mode === 'edit' ? 'on' : 'off');
+    set('effects', this.isEffects ? 'on' : 'off');
     set('utility', this.mode === 'utility' || this.busy ? 'on' : 'off');
     set('io', this.mode === 'io' ? 'on' : 'off');
     set('enter', this.mode === 'store' || (this.mode === 'utility' && !!this.menuItems()[this.utilCursor]?.enter) || (this.mode === 'recall' && (this.view !== USER || this.recallTarget !== this.current)) ? 'flash' : 'off');
     const p = paramAt(this.cursor);
-    for (const b of BLOCKS) set(b.id, this.mode === 'edit' && p?.block === b.id ? 'on' : 'off');
+    const routed = this.mode === 'routing' ? routedBlock(this.edit.cell(this.routeCursor.c, this.routeCursor.r))?.block : undefined;
+    for (const b of BLOCKS) set(b.id, (this.mode === 'edit' && p?.block === b.id) || routed === b.id ? 'on' : 'off');
   }
 
   private renderStrip(): void {

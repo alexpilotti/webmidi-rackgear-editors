@@ -8,7 +8,7 @@ import { BLOCK_LEN, codecFromInstance, joinMessages, splitSysex } from '../src/c
 import { ROM_NAMES } from '../src/rom.ts';
 import { ClockMeter } from '../src/clock.ts';
 import { GCARD_NAMES } from '../src/gcard.ts';
-import { Bank, bankProgram, recallBankProgram, romIndex, cardIndex, HEADER_SIZE, userIndex, NAME_LEN, PARAMS, Preset, RECORD_SIZE, SLOTS } from '../src/model.ts';
+import { Bank, bankProgram, recallBankProgram, romIndex, cardIndex, HEADER_SIZE, ROUTED, ROUTING_COLS, ROUTING_ROWS, userIndex, NAME_LEN, PARAMS, Preset, RECORD_SIZE, SLOTS } from '../src/model.ts';
 
 let failures = 0;
 const test = (name: string, fn: () => void) => {
@@ -227,6 +227,40 @@ test('ROM names 1–50 match the unit (ROM 1–50 copied to User 1–50)', () =>
     eq(bank.preset(i).name.trimEnd(), ROM_NAMES[i]);
   }
   eq(bank.used(50), false);
+});
+
+const romBank = new Bank(codec.decodeDump(splitSysex(new Uint8Array(readFileSync(new URL('../docs/samples/gforce-rom-50.syx', import.meta.url))))).stream);
+/** Routing of ROM n as columns of row codes ('-' empty), e.g. '4 | 11/7/8'. */
+const routing = (n: number) => {
+  const p = romBank.preset(n - 1);
+  const cols: string[] = [];
+  for (let c = 0; c < ROUTING_COLS; c++) {
+    const rows = Array.from({ length: ROUTING_ROWS }, (_, r) => p.cell(c, r));
+    const last = rows.map((v) => v !== 0).lastIndexOf(true);
+    if (last >= 0) cols.push(rows.slice(0, last + 1).map((v) => (v ? String(v) : '-')).join('/'));
+  }
+  return cols.join(' | ');
+};
+const sub = (n: number, block: string) => romBank.preset(n - 1).subAlgo(ROUTED.find((b) => b.block === block)!);
+
+test('routing grid of ROM presets matches the preset list', () => {
+  eq(routing(1), '4 | 11'); // Mono Reverb: Compressor → Reverb
+  eq(routing(4), '4 | 11/7/8'); // Mono Harmony: Compressor → Reverb ∥ Pitch ∥ Delay
+  eq(routing(9), '4 | 9 | 11'); // Mono Crank it Up: Drive in the middle
+  eq(routing(11), '4 | 7/1 | 1 | 11/10'); // Mono Pedal Pitch: a pipeline beside the Pitch
+  eq(routing(31), '11/10/8/7'); // 3-Way: all in parallel
+  eq(routing(38), '-/4 | -/5'); // Go Direct: "EQ & Compression"
+});
+
+test('sub-algorithms of ROM presets match the preset list', () => {
+  eq(sub(1, 'reverb'), 'ADVANCED'); // photo: REVERB - ADVANCED
+  eq(sub(5, 'pitch'), 'DETUNE'); // Mono Doubler
+  eq(sub(4, 'pitch'), 'INTELLIGENT'); // Mono Harmony
+  eq(sub(15, 'pantrem'), 'SURROUND PANNER'); // pans beyond a normal stereo image
+  eq(sub(8, 'filters'), 'PHASER');
+  eq(sub(38, 'filters'), 'PARAMETRIC EQ');
+  eq(sub(44, 'chorus'), 'ADVANCED FLANGER'); // Power Chord, "some flanging"
+  eq(sub(9, 'drive'), ''); // no sub-algorithms
 });
 
 test('G-Card names: banks of 100, 100 and 45 from its manual', () => {

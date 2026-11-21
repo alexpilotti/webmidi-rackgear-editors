@@ -13,6 +13,7 @@ worked out from dumps of a real unit (`samples/`), sent with
 | `gforce-user-bank-b.syx` | as A, renamed "TEST ABC" |
 | `gforce-user-bank-c.syx` | as B, DECAY TIME 2.5 s |
 | `gforce-user-bank-d.syx` | User 1 "Mono Reverb", User 2 "Tremendous Delay", User 5 "Rhythmic"; Users 3–4 empty |
+| `gforce-rom-50.syx` | ROM 1–50 copied unedited to User 1–50 (see "Record map from ROM 1–50") |
 
 A first capture with an empty User bank sent only the header message, with a
 block count of `02` (its data blocks were not recorded).
@@ -73,6 +74,56 @@ other presets may lay out their blocks differently.
 
 The checklist of parameters still to find, and the method, is in
 [PARAMETERS.md](PARAMETERS.md).
+
+## Record map from ROM 1–50
+
+`gforce-rom-50.syx` holds ROM 1–50 copied unedited to User 1–50. The map below
+comes from comparing those 50 records with the manual's preset list
+(descriptions, Mono / Stereo / 3-Way, pedal column). Single-change pairs are
+still needed to confirm it. The routing grid is the most certain part.
+
+| Offset | Size | Meaning | Evidence |
+|---|---|---|---|
+| `0x016` | 2 | `03 00` in all 50 | constant |
+| `0x018` | 8 × 2 | one value 0–3 per block, at even offsets, in block-ID order (Comp … Reverb). *Unknown*; not the sub-algorithm (Comp reaches 3). Set for blocks that are not routed too | varies with the preset |
+| `0x028` | 32 | **routing grid**, 8 columns × 4 rows, column by column: cell = `0x28 + 4·column + row` | see below |
+| `0x048` | 10 | *Guess:* In section / Noise Gate. `0x49` signed (−30, −60, −25: Threshold dB?), `0x4A` 18–50 (Max. Damping?), `0x4B` 10–100 (Release?), `0x4C` 0/1 (Mode?), `0x4D` signed small (Level dB?) | 38 Go Direct and other Rhythm presets differ |
+| `0x076` | ~56 | *Guess:* modifier matrix links, 10 bytes each (`0x76`, `0x80`, `0x8A`, …). Filled only in presets with a pedal (10, 11, 24, 25, 36, 37, 40, 48) or a dynamic or LFO effect (3, 7, 12, 16, 23, 29, 30). In the pedal presets, byte 6 of the link is the target block's ID: 8 Delay (10, 24), 7 Pitch (11, 25, 37), 11 Reverb (36) | matches the pedal column |
+| `0x0AE` | 146 | zero in all 50 | constant |
+| `0x140` | ~38 | *Guess:* global or In/Out section; mostly constant | |
+| `0x166` | 20 | **Compressor**; `0x166` = sub-algorithm (0 Simple, 1 Advanced) | 1 only in Rhythm presets 40–47, 50 |
+| `0x17A` | 34 | **Filters**; `0x17A` = sub-algorithm: 0 Parametric EQ (38 Go Direct "EQ"), 2 in both Touchwahs, 4 Phaser (8, 12). *Guess:* manual order | |
+| `0x19C` | 22 | **Pan+Trem**; `0x19C` = sub-algorithm: 0 Tremolo, 1 Tremolo Advanced (12), 2 Panner (34 "subtle slow panning"), 3 Surround Panner (15 "pans beyond a normal stereo image") | manual order fits all |
+| `0x1B2` | 36 | **Pitch**; `0x1B2` = sub-algorithm: 0 Intelligent (Harmony presets), 1 one voice (11/25 "lower octave", 33 "octave up"), 2 two voices, 3 Detune (all Doubler presets) | |
+| `0x1D6` | ~50 | **Delay**; `0x1D6` = sub-algorithm 0–4 (*guess:* Stereo, Dual, Dual Two-tap, One-tap, Quad-tap; 29 Slap+Slow = 2 Dual Two-tap) | |
+| `0x208` | ~38 | **Drive** (no sub-algorithms); `0x214`–`0x217` differ only in presets 9, 22, 44, which route the Drive | |
+| `0x22E` | 24 | **Chorus/Flanger**; `0x22E` = sub-algorithm: 0 Classic Chorus, 1 Advanced Chorus, 2 Classic Flanger, 3 Advanced Flanger (44 "flanging") | manual order fits |
+| `0x246` | 32 | **Reverb**; `0x246` = sub-algorithm, 1 = Advanced (photo of Mono Reverb), *guess:* 0 = Simple. `0x253` = DECAY TIME | |
+
+**Routing grid.** Each cell holds a block ID, 0 for an empty cell, 1 for the
+pipeline icon:
+
+| ID | 1 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 |
+|---|---|---|---|---|---|---|---|---|---|
+| Block | pipe | Compressor | Filters | Pan+Trem | Pitch | Delay | Drive | Chorus | Reverb |
+
+For example, ROM 4 Mono Harmony is `4 | 11/7/8`: the Compressor, then Reverb,
+Pitch and Delay in parallel. All the 3-Way presets put their blocks in
+parallel in column 1. 38 Go Direct ("EQ & Compression") is `-/4 | -/5`. IDs 2
+and 3 are not used here. *Guess:* they are the In and Out sections. The
+Noise Gate never appears in the grid.
+
+**Values.** Most parameters are single bytes, signed where needed (`FE` =
+−2, `CE` = −50, as in pan pairs `32 CE` = +50 / −50). Some are 16-bit
+little-endian, such as the filter frequencies at `0x18A`, `0x18E`, `0x192`
+and `0x196`: `6D 03` = 877.
+
+**Unused blocks are not reliable.** ROM 1 here and User 1 of samples A–D are
+both "Mono Reverb" copied from ROM. They differ in six bytes, `0x1EE`–`0x1F3`
+(`1F 1F 63 63 64 64` here, zeros there). Those bytes are inside the Delay
+block, which that preset does not route. So bytes of a block that is not in
+the routing can't be decoded from this dump. Decode each block from presets
+that use it.
 
 ## Open questions
 

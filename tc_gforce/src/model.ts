@@ -71,6 +71,43 @@ export const PARAMS: ParamDef[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Routing grid and sub-algorithms, found by comparing ROM 1–50
+// (samples/gforce-rom-50.syx) with the manual's preset list. Read-only: no
+// single-change dump confirms them yet (see README, assumptions).
+
+/** Routing grid: 8 columns × 4 rows of block codes, column by column. */
+export const ROUTING_AT = 0x28;
+export const ROUTING_COLS = 8;
+export const ROUTING_ROWS = 4;
+/** Grid code of the pipeline icon (the signal passes through the cell). */
+export const PIPE = 1;
+
+export interface RoutedBlock {
+  /** Code stored in a grid cell. */
+  code: number;
+  block: BlockId;
+  /** Short name drawn in a grid cell. */
+  short: string;
+  /** Offset of the sub-algorithm byte, when the block has sub-algorithms. */
+  subAt?: number;
+  /** Sub-algorithm names by value, in the manual's order. */
+  subs?: string[];
+}
+
+export const ROUTED: RoutedBlock[] = [
+  { code: 4, block: 'compress', short: 'CMP', subAt: 0x166, subs: ['SIMPLE', 'ADVANCED'] },
+  { code: 5, block: 'filters', short: 'FLT', subAt: 0x17a, subs: ['PARAMETRIC EQ', 'WAH WAH', 'FORMANT', 'RESONANCE', 'PHASER'] },
+  { code: 6, block: 'pantrem', short: 'P+T', subAt: 0x19c, subs: ['TREMOLO', 'TREMOLO ADV', 'PANNER', 'SURROUND PANNER'] },
+  { code: 7, block: 'pitch', short: 'PIT', subAt: 0x1b2, subs: ['INTELLIGENT', 'FIXED VOICES', '2 VOICE 2 OCT', 'DETUNE'] },
+  { code: 8, block: 'delay', short: 'DLY', subAt: 0x1d6, subs: ['STEREO', 'DUAL', 'DUAL TWO-TAP', 'ONE-TAP', 'QUAD-TAP'] },
+  { code: 9, block: 'drive', short: 'DRV' },
+  { code: 10, block: 'chorus', short: 'CHO', subAt: 0x22e, subs: ['CLASSIC CHORUS', 'ADVANCED CHORUS', 'CLASSIC FLANGER', 'ADVANCED FLANGER'] },
+  { code: 11, block: 'reverb', short: 'REV', subAt: 0x246, subs: ['SIMPLE', 'ADVANCED'] },
+];
+
+export const routedBlock = (code: number): RoutedBlock | undefined => ROUTED.find((r) => r.code === code);
+
 export function paramAt(offset: number): ParamDef | undefined {
   return PARAMS.find((p) => p.offset === offset);
 }
@@ -122,6 +159,18 @@ export class Preset {
   }
   set(p: ParamDef, v: number): void {
     this.data[p.offset] = Math.max(p.min, Math.min(p.max, Math.round(v)));
+  }
+
+  /** Grid code at column c (0–7), row r (0–3): 0 empty, PIPE, or a block code. */
+  cell(c: number, r: number): number {
+    return this.data[ROUTING_AT + c * ROUTING_ROWS + r];
+  }
+
+  /** Sub-algorithm name of a block, `SUB n` for a value past the known list, '' without sub-algorithms. */
+  subAlgo(b: RoutedBlock): string {
+    if (b.subAt === undefined || !b.subs) return '';
+    const v = this.data[b.subAt];
+    return b.subs[v] ?? `SUB ${v}`;
   }
 
   equals(o: Preset): boolean {

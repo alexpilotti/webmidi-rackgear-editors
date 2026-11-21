@@ -28,6 +28,17 @@ Effects, Modifier and Recall chapters for the rest).
    and scaling. Whatever stays ambiguous gets a one-change dump pair.
 4. Each confirmed parameter goes into `PARAMS` in `src/model.ts` with a test.
 
+**Already found from ROM 1–50** (`samples/gforce-rom-50.syx`; see "Record map
+from ROM 1–50" in [SYSEX_FORMAT.md](SYSEX_FORMAT.md)):
+- the routing grid at `0x28` and the block IDs
+- where each block's data starts, with its sub-algorithm byte
+- the likely Noise Gate (`0x48`) and modifier-link (`0x76`) areas
+
+So step 1 only has to locate the parameters inside each block. Bytes of a
+block that the preset doesn't route can differ between copies of the same
+preset, so only presets that route the block can be compared with Empty
+Routing.
+
 ### ROM 180–225 → User 1–46
 
 | User | ROM | Name | Block / sub-algorithm (manual) |
@@ -99,7 +110,7 @@ the routing grid (4 × 8). The Tempo parameters take Ignored or a note value
 | Out Level | dB ? | | | |
 | Mute mode | Mix 0% · FX Out · Output · FX In · Input | | | |
 | Bypass | on / off | | | |
-| Routing position | column 1–8, row 1–4 | | | |
+| Routing position | column 1–8, row 1–4 | | `0x28 + 4·column + row` holds the block ID | ROM 1–50 vs the preset list |
 
 ## In section: Noise Gate (GATE key)
 
