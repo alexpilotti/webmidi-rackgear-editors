@@ -135,7 +135,9 @@ A faulty transfer can leave the User bank empty, so keep the backup.
 The value strip shows the decoded parameters, the byte under the cursor and the
 stored value. The name field renames the edit buffer; STORE writes it. In the
 PRESET DATA grid, click a byte to put the cursor on it. Orange bytes differ
-from the stored preset.
+from the stored preset. In the preset list, the filled row is the preset
+recalled (or being edited); an outlined row is the one the Recall page
+previews or STORE targets, which ENTER acts on.
 
 Keyboard shortcuts: `R` recall, `S` store, `E` effects, `U` utility, `I` I/O setup, `T` tempo, `Enter`,
 `Esc` exit, ↑/↓ and ←/→ turn the wheels, `Delete` clears the selected slot.

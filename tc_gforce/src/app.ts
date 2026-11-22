@@ -1702,6 +1702,8 @@ export class App {
     this.libList.style.gridTemplateColumns = `repeat(${Math.ceil(count / rows)}, 1fr)`;
     this.libList.classList.toggle('readonly', b !== USER);
     const sel = b === USER ? this.current : this.unitSel?.bank === b ? this.unitSel.n : -1;
+    // The preset the Recall page previews (or Store targets), which ENTER acts on.
+    const cue = this.mode === 'recall' ? this.recallTarget : this.mode === 'store' && b === USER ? this.storeTarget : -1;
     this.libRows.forEach((row, i) => {
       row.hidden = i >= count;
       if (i >= count) return;
@@ -1716,10 +1718,16 @@ export class App {
         h('span', { class: 'name', text: name || (b === USER ? '—' : '') }),
         h('span', { class: 'flags', text: flags }));
       row.classList.toggle('sel', i === sel);
+      row.classList.toggle('cue', i === cue && i !== sel);
       row.classList.toggle('blank', b === USER && !name);
       row.setAttribute('aria-selected', String(i === sel));
     });
+    if (cue >= 0 && cue !== this.lastCue) this.libRows[cue]?.scrollIntoView({ block: 'nearest' });
+    this.lastCue = cue;
   }
+
+  /** Last list row cued, so the list scrolls only when the cue moves. */
+  private lastCue = -1;
 
   private renderData(): void {
     const stored = this.bank.preset(this.current);

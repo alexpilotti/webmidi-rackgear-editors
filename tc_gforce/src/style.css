@@ -402,6 +402,8 @@ button { font: inherit; color: inherit; }
 .lib-row:hover { background: rgba(255, 42, 26, 0.1); }
 .lib-row.sel { background: #ff2a1a; color: #1a0402; opacity: 1; }
 .lib-row.sel .name, .lib-row.sel .n, .lib-row.sel .flags { color: #1a0402; }
+/* The Recall preview / Store target under the VALUE wheel, before ENTER. */
+.lib-row.cue { background: rgba(255, 42, 26, 0.28); box-shadow: inset 0 0 0 1px #ff2a1a; }
 
 /* ------------------------------------------------------------------ preset data */
 
