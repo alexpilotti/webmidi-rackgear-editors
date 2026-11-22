@@ -13,7 +13,7 @@ worked out from dumps of a real unit (`samples/`), sent with
 | `gforce-user-bank-b.syx` | as A, renamed "TEST ABC" |
 | `gforce-user-bank-c.syx` | as B, DECAY TIME 2.5 s |
 | `gforce-user-bank-d.syx` | User 1 "Mono Reverb", User 2 "Tremendous Delay", User 5 "Rhythmic"; Users 3–4 empty |
-| `gforce-rom-100.syx` | ROM 1–100 copied unedited to User 1–100. An earlier dump of ROM 1–50 alone was byte-identical to its User 1–50, unused-block bytes included (see "Record map from ROM 1–100") |
+| `gforce-rom-100.syx` | ROM 1–100 copied unedited to User 1–100 (see "Record map from ROM 1–100"). An earlier dump of ROM 1–50 alone was byte-identical to its User 1–50, unused-block bytes included |
 
 A first capture with an empty User bank sent only the header message, with a
 block count of `02` (its data blocks were not recorded).
@@ -91,13 +91,13 @@ the unit, with its box name: 4 CPR, 5 FIL, 6 PAN, 7 PIT, 8 DLY, 9 DRV, 10 CHO,
 
 | Offset | Size | Meaning | Evidence |
 |---|---|---|---|
-| `0x016` | 2 | `03 00` in all 50 | constant |
+| `0x016` | 2 | `03 00` in 99 of 100; `01 00` in 92 Surround Reverb. *Unknown* | |
 | `0x018` | 8 × 2 | one value 0–3 per block, at even offsets, in block-ID order (Comp … Reverb). *Unknown*; not the sub-algorithm (Comp reaches 3). Set for blocks that are not routed too | varies with the preset |
 | `0x028` | 32 | **routing grid**, 8 columns × 4 rows, column by column: cell = `0x28 + 4·column + row` | see below |
-| `0x048` | 10 | *Guess:* In section / Noise Gate. `0x49` signed (−30, −60, −25: Threshold dB?), `0x4A` 18–50 (Max. Damping?), `0x4B` 10–100 (Release?), `0x4C` 0/1 (Mode?), `0x4D` signed small (Level dB?) | 38 Go Direct and other Rhythm presets differ |
+| `0x048` | 10 | *Guess:* In section / Noise Gate. `0x49` signed −60 … −14 (Threshold dB?), `0x4A` 0–50 (Max. Damping dB?), `0x4B` 3–100 (Release?), `0x4C` 0/1 (Mode?), `0x4D` signed 0 … −9 (Level dB?); `0x4E` = 100 in all 100 | ranges over ROM 1–100 |
 | `0x076` | 200 | **modifier matrix**: 20 links of 10 bytes (the manual's maximum is 20), see below. Unused links are zeros | every pedal preset has links |
 | `0x140` | ~38 | *Guess:* global or In/Out section; mostly constant | |
-| `0x166` | 20 | **Compressor**; `0x166` = sub-algorithm (0 Simple, 1 Advanced) | 1 only in Rhythm presets 40–47, 50 |
+| `0x166` | 20 | **Compressor**; `0x166` = sub-algorithm (0 Simple, 1 Advanced) | 1 in 27 of ROM 1–100, none before 40 |
 | `0x17A` | 34 | **Filters**; `0x17A` = sub-algorithm: **2 = WAH-WAH** (photo, ROM 7). *Guess:* 0 Parametric EQ (38 Go Direct "EQ"), 4 Phaser (8, 12); 1 and 3 unknown. Not the manual's order. `0x17B` = MIX LEVEL % (35, photo), `0x187` = Wah FREQ ×100 (45 = 0.45, photo) | ROM 7 photo |
 | `0x19C` | 22 | **Pan+Trem**; `0x19C` = sub-algorithm: 0 Tremolo, 1 Tremolo Advanced (12), 2 Panner (34 "subtle slow panning"), 3 Surround Panner (15 "pans beyond a normal stereo image") | manual order fits all |
 | `0x1B2` | 36 | **Pitch**; `0x1B2` = sub-algorithm: 0 Intelligent (Harmony presets), 1 one voice (11/25 "lower octave", 33 "octave up"), 2 two voices, 3 Detune (all Doubler presets) | |

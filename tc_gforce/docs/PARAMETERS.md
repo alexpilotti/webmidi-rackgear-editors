@@ -105,7 +105,7 @@ the routing grid (4 × 8). The Tempo parameters take Ignored or a note value
 
 | Parameter | Range / values | LCD name | Offset | Evidence |
 |---|---|---|---|---|
-| Mix | % ? | MIX LEVEL | sub-algorithm byte + 1 (Filters `0x17B`) | ROM 7 photo: 35 %. *Guess* for the other blocks: the byte after each sub-algorithm byte reads 0–100 in all 50 presets |
+| Mix | % ? | MIX LEVEL | sub-algorithm byte + 1 (Filters `0x17B`) | ROM 7 photo: 35 %. *Guess* for the other blocks: the byte after each sub-algorithm byte reads 0–100 in all of ROM 1–100 |
 | In Level | dB ? | | | |
 | Out Level | dB ? | | | |
 | Mute mode | Mix 0% · FX Out · Output · FX In · Input | | | |
