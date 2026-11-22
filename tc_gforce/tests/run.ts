@@ -220,13 +220,18 @@ test('ROM names: 225 from the manual, ROM 5 is Mono Doubler', () => {
 });
 
 const romDump = (f: string) => new Bank(codec.decodeDump(splitSysex(new Uint8Array(readFileSync(new URL(`../docs/samples/${f}`, import.meta.url))))).stream);
-const romBank = romDump('gforce-rom-100.syx');
+const romBank = romDump('gforce-rom-001-100.syx');
+const romBank2 = romDump('gforce-rom-101-200.syx');
+/** The record of ROM n (1–200), from the two ROM dumps. */
+const romPreset = (n: number) => (n <= 100 ? romBank.preset(n - 1) : romBank2.preset(n - 101));
 
-test('ROM names 1–100 match the unit (ROM copied to the User bank)', () => {
+test('ROM names 1–200 match the unit (ROM copied to the User bank)', () => {
   for (let i = 0; i < 100; i++) {
     eq(romBank.used(i), true);
-    eq(romBank.preset(i).name.trimEnd(), ROM_NAMES[i], `ROM ${i + 1}`);
+    eq(romBank2.used(i), true);
   }
+  for (let n = 1; n <= 200; n++) eq(romPreset(n).name.trimEnd(), ROM_NAMES[n - 1], `ROM ${n}`);
+  eq(ROM_NAMES[195], 'Delay Tap Tempo'); // "Straight Delay" in the manual
 });
 
 /** Routing of ROM n as columns of row codes ('-' empty), e.g. '4 | 11/7/8'. */
@@ -269,28 +274,46 @@ test('sub-algorithms of ROM presets: names seen on the unit, guesses marked', ()
   eq(sub(9, 'drive'), ''); // no sub-algorithms
 });
 
-test('ROM_BLOCKS matches the ROM 1–100 dump; ROM 7 as on the unit\'s Recall page', () => {
-  eq(ROM_BLOCKS.length, 100);
-  for (let i = 0; i < 100; i++) eq(ROM_BLOCKS[i], romBank.preset(i).blockMask(), `ROM ${i + 1}`);
+test('ROM_BLOCKS matches the ROM 1–200 dumps; ROM 7 as on the unit\'s Recall page', () => {
+  eq(ROM_BLOCKS.length, 200);
+  for (let n = 1; n <= 200; n++) eq(ROM_BLOCKS[n - 1], romPreset(n).blockMask(), `ROM ${n}`);
   // Photo of Recall, preset 7 Mono Touchwah: SELECT shows CPR FIL / PIT / REV.
   eq(ROUTED.filter((_, k) => ROM_BLOCKS[6] & (1 << k)).map((r) => r.short).join(' '), 'CPR FIL PIT REV');
 });
 
 test('modifier links: 20 × 10 bytes at 0x76, pedal presets have an Ext 1 link', () => {
   // Presets with "X" (pedal) in the manual's preset list, ROM 1–100.
-  const pedal = [10, 11, 24, 25, 36, 37, 40, 48, 69, 72, 73, 75, 76, 77, 79, 80, 83, 84, 89];
+  const pedal = [10, 11, 24, 25, 36, 37, 40, 48, 69, 72, 73, 75, 76, 77, 79, 80, 83, 84, 89,
+    106, 109, 111, 113, 116, 117, 119, 122, 123, 133, 135, 141, 144, 148, 150, 151, 154, 155, 157, 160,
+    173, 174, 175, 176, 177, 179];
   const links = (n: number) => Array.from({ length: 20 }, (_, k) => {
-    const p = romBank.preset(n - 1), at = 0x76 + 10 * k;
+    const p = romPreset(n), at = 0x76 + 10 * k;
     return { src: p.byte(at + 5), block: p.byte(at + 6), id: (p.byte(at + 8) << 8) | p.byte(at + 9) };
   });
-  // ROM 84 Crunch Phasecomp is the exception: marked X, but it only links ENV and an LFO.
-  for (const n of pedal) eq(links(n).some((l) => l.src === 1 && l.id !== 0), n !== 84, `ROM ${n}`);
+  // The exceptions: 84 Crunch Phasecomp (ENV and an LFO only) and 111 Wes M Jazz Lead (no targets).
+  for (const n of pedal) eq(links(n).some((l) => l.src === 1 && l.id !== 0), n !== 84 && n !== 111, `ROM ${n}`);
   // A parameter ID's thousands are the block: 1000 × (grid code − 3).
-  for (let n = 1; n <= 100; n++) {
+  for (let n = 1; n <= 200; n++) {
     for (const l of links(n)) if (l.id) eq(Math.floor(l.id / 1000), l.block - 3, `ROM ${n}`);
   }
+  // 174 Jam with Loop: "Ext. 1 controls the looping, Ext. 2 controls the adding" → sources 1 and 2.
+  eq(links(174).some((l) => l.src === 2 && l.id), true);
+  // 121 Verb Morphed to Dly: "Envelope controlled crossfade between Reverb and Delay" → ENV on both Mixes.
+  eq(links(121).filter((l) => l.src === 10).map((l) => l.id), [5000, 8000]);
   // Mono Dyn Delay: the envelope ducks the Delay Out Level (manual p.19's example).
   eq(links(3)[0], { src: 10, block: 8, id: 5002 });
+});
+
+test('single-block ROM presets 180–200 name their sub-algorithm', () => {
+  const s = (n: number, block: string) => romPreset(n).subAlgo(ROUTED.find((b) => b.block === block)!);
+  eq(s(197, 'delay'), 'DUAL?'); // Two Delays, L 500 / R 400 ms
+  eq(s(200, 'delay'), 'QUAD-TAP?'); // 4 Tap Delay
+  eq(s(198, 'delay'), 'ONE-TAP'); // Tape Delay
+  eq(s(194, 'pantrem'), 'PANNER?'); // Stereo Pan
+  eq(s(195, 'pantrem'), 'SURROUND PANNER?');
+  eq(s(188, 'chorus'), 'ADVANCED FLANGER?'); // Flanger Straight
+  eq(s(140, 'filters'), 'FORMANT?'); // "Stepped Formant Filter"
+  eq(s(173, 'filters'), 'RESONANCE?'); // "Resonance Filter"
 });
 
 test('values seen on the unit (photos) sit in their block', () => {

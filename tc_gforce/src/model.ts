@@ -72,9 +72,10 @@ export const PARAMS: ParamDef[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Routing grid and sub-algorithms, found by comparing ROM 1–100
-// (samples/gforce-rom-100.syx) with the manual's preset list. Read-only: no
-// single-change dump confirms them yet (see README, assumptions).
+// Routing grid and sub-algorithms, found by comparing ROM 1–200
+// (samples/gforce-rom-001-100.syx, gforce-rom-101-200.syx) with the manual's
+// preset list. Read-only: no single-change dump confirms them yet (see README,
+// assumptions).
 
 /** Routing grid: 8 columns × 4 rows of block codes, column by column. */
 export const ROUTING_AT = 0x28;
@@ -99,11 +100,14 @@ export interface RoutedBlock {
 
 export const ROUTED: RoutedBlock[] = [
   { code: 4, block: 'compress', short: 'CPR', subAt: 0x166, subs: ['SIMPLE', 'ADVANCED'] },
-  // ROM 7 Touchwah (2) shows FILTER - WAH-WAH: not the manual's order. 0 and 4 fit EQ and Phaser presets.
-  { code: 5, block: 'filters', short: 'FIL', subAt: 0x17a, subs: ['PARAMETRIC EQ', '', 'WAH-WAH', '', 'PHASER'], seen: [2] },
+  // ROM 7 Touchwah (2) shows FILTER - WAH-WAH: not the manual's order. The rest fit the preset list:
+  // 0 EQ presets, 1 173 "Resonance Filter", 3 140 "Stepped Formant Filter", 4 the Phaser presets.
+  { code: 5, block: 'filters', short: 'FIL', subAt: 0x17a, subs: ['PARAMETRIC EQ', 'RESONANCE', 'WAH-WAH', 'FORMANT', 'PHASER'], seen: [2] },
+  // 2 194 Stereo Panner, 3 195 Surround Panner; all three single-block Tremolos are 1.
   { code: 6, block: 'pantrem', short: 'PAN', subAt: 0x19c, subs: ['TREMOLO', 'TREMOLO ADV', 'PANNER', 'SURROUND PANNER'] },
   { code: 7, block: 'pitch', short: 'PIT', subAt: 0x1b2, subs: ['INTELLIGENT', 'FIXED VOICES', '2 VOICE 2 OCT', 'DETUNE'] },
-  // ROM 3 Mono Dyn Delay (4) shows DELAY - ONE-TAP. 2 fits 29 Slap+Slow Dly (two taps).
+  // ROM 3 Mono Dyn Delay (4) shows DELAY - ONE-TAP. The rest fit the single-block presets:
+  // 1 197 "Two Delays", 2 29 Slap+Slow Dly (two taps), 3 200 "4 Tap Delay", 0 196 (one 500 ms Delay).
   { code: 8, block: 'delay', short: 'DLY', subAt: 0x1d6, subs: ['STEREO', 'DUAL', 'DUAL TWO-TAP', 'QUAD-TAP', 'ONE-TAP'], seen: [4] },
   { code: 9, block: 'drive', short: 'DRV' },
   { code: 10, block: 'chorus', short: 'CHO', subAt: 0x22e, subs: ['CLASSIC CHORUS', 'ADVANCED CHORUS', 'CLASSIC FLANGER', 'ADVANCED FLANGER'] },

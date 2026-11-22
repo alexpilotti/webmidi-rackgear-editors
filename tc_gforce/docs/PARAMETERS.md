@@ -28,8 +28,9 @@ Effects, Modifier and Recall chapters for the rest).
    and scaling. Whatever stays ambiguous gets a one-change dump pair.
 4. Each confirmed parameter goes into `PARAMS` in `src/model.ts` with a test.
 
-**Already found from ROM 1–100** (`samples/gforce-rom-100.syx`; see "Record map
-from ROM 1–100" in [SYSEX_FORMAT.md](SYSEX_FORMAT.md)):
+**Already found from ROM 1–200** (`samples/gforce-rom-001-100.syx`,
+`gforce-rom-101-200.syx`; see "Record map from ROM 1–200" in
+[SYSEX_FORMAT.md](SYSEX_FORMAT.md)):
 - the routing grid at `0x28` and the block IDs
 - where each block's data starts, with its sub-algorithm byte
 - the likely Noise Gate (`0x48`) and modifier-link (`0x76`) areas
@@ -105,12 +106,12 @@ the routing grid (4 × 8). The Tempo parameters take Ignored or a note value
 
 | Parameter | Range / values | LCD name | Offset | Evidence |
 |---|---|---|---|---|
-| Mix | % ? | MIX LEVEL | sub-algorithm byte + 1 (Filters `0x17B`) | ROM 7 photo: 35 %. *Guess* for the other blocks: the byte after each sub-algorithm byte reads 0–100 in all of ROM 1–100 |
+| Mix | % ? | MIX LEVEL | sub-algorithm byte + 1 (Filters `0x17B`) | ROM 7 photo: 35 %. *Guess* for the other blocks: the byte after each sub-algorithm byte reads 0–100 in all of ROM 1–200 |
 | In Level | dB ? | | | |
 | Out Level | dB ? | | | |
 | Mute mode | Mix 0% · FX Out · Output · FX In · Input | | | |
 | Bypass | on / off | | | |
-| Routing position | column 1–8, row 1–4 | | `0x28 + 4·column + row` holds the block ID | ROM 1–100 vs the preset list, photos |
+| Routing position | column 1–8, row 1–4 | | `0x28 + 4·column + row` holds the block ID | ROM 1–200 vs the preset list, photos |
 
 ## In section: Noise Gate (GATE key)
 
