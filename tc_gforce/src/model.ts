@@ -72,8 +72,8 @@ export const PARAMS: ParamDef[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Routing grid and sub-algorithms, found by comparing ROM 1–50
-// (samples/gforce-rom-50.syx) with the manual's preset list. Read-only: no
+// Routing grid and sub-algorithms, found by comparing ROM 1–100
+// (samples/gforce-rom-100.syx) with the manual's preset list. Read-only: no
 // single-change dump confirms them yet (see README, assumptions).
 
 /** Routing grid: 8 columns × 4 rows of block codes, column by column. */

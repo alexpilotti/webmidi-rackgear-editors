@@ -13,7 +13,7 @@ worked out from dumps of a real unit (`samples/`), sent with
 | `gforce-user-bank-b.syx` | as A, renamed "TEST ABC" |
 | `gforce-user-bank-c.syx` | as B, DECAY TIME 2.5 s |
 | `gforce-user-bank-d.syx` | User 1 "Mono Reverb", User 2 "Tremendous Delay", User 5 "Rhythmic"; Users 3–4 empty |
-| `gforce-rom-50.syx` | ROM 1–50 copied unedited to User 1–50 (see "Record map from ROM 1–50") |
+| `gforce-rom-100.syx` | ROM 1–100 copied unedited to User 1–100. An earlier dump of ROM 1–50 alone was byte-identical to its User 1–50, unused-block bytes included (see "Record map from ROM 1–100") |
 
 A first capture with an empty User bank sent only the header message, with a
 block count of `02` (its data blocks were not recorded).
@@ -75,10 +75,11 @@ other presets may lay out their blocks differently.
 The checklist of parameters still to find, and the method, is in
 [PARAMETERS.md](PARAMETERS.md).
 
-## Record map from ROM 1–50
+## Record map from ROM 1–100
 
-`gforce-rom-50.syx` holds ROM 1–50 copied unedited to User 1–50. The map below
-comes from comparing those 50 records with the manual's preset list
+`gforce-rom-100.syx` holds ROM 1–100 copied unedited to User 1–100. The map
+below comes from comparing those
+100 records with the manual's preset list
 (descriptions, Mono / Stereo / 3-Way, pedal column). Single-change pairs are
 still needed to confirm it. The routing grid is the most certain part:
 photos of the unit's Effects display for ROM 1–7 and 9 show exactly the
@@ -94,8 +95,7 @@ the unit, with its box name: 4 CPR, 5 FIL, 6 PAN, 7 PIT, 8 DLY, 9 DRV, 10 CHO,
 | `0x018` | 8 × 2 | one value 0–3 per block, at even offsets, in block-ID order (Comp … Reverb). *Unknown*; not the sub-algorithm (Comp reaches 3). Set for blocks that are not routed too | varies with the preset |
 | `0x028` | 32 | **routing grid**, 8 columns × 4 rows, column by column: cell = `0x28 + 4·column + row` | see below |
 | `0x048` | 10 | *Guess:* In section / Noise Gate. `0x49` signed (−30, −60, −25: Threshold dB?), `0x4A` 18–50 (Max. Damping?), `0x4B` 10–100 (Release?), `0x4C` 0/1 (Mode?), `0x4D` signed small (Level dB?) | 38 Go Direct and other Rhythm presets differ |
-| `0x076` | ~56 | *Guess:* modifier matrix links, 10 bytes each (`0x76`, `0x80`, `0x8A`, …). Filled only in presets with a pedal (10, 11, 24, 25, 36, 37, 40, 48) or a dynamic or LFO effect (3, 7, 12, 16, 23, 29, 30). In the pedal presets, byte 6 of the link is the target block's ID: 8 Delay (10, 24), 7 Pitch (11, 25, 37), 11 Reverb (36) | matches the pedal column |
-| `0x0AE` | 146 | zero in all 50 | constant |
+| `0x076` | 200 | **modifier matrix**: 20 links of 10 bytes (the manual's maximum is 20), see below. Unused links are zeros | every pedal preset has links |
 | `0x140` | ~38 | *Guess:* global or In/Out section; mostly constant | |
 | `0x166` | 20 | **Compressor**; `0x166` = sub-algorithm (0 Simple, 1 Advanced) | 1 only in Rhythm presets 40–47, 50 |
 | `0x17A` | 34 | **Filters**; `0x17A` = sub-algorithm: **2 = WAH-WAH** (photo, ROM 7). *Guess:* 0 Parametric EQ (38 Go Direct "EQ"), 4 Phaser (8, 12); 1 and 3 unknown. Not the manual's order. `0x17B` = MIX LEVEL % (35, photo), `0x187` = Wah FREQ ×100 (45 = 0.45, photo) | ROM 7 photo |
@@ -118,6 +118,33 @@ Pitch and Delay in parallel. All the 3-Way presets put their blocks in
 parallel in column 1. 38 Go Direct ("EQ & Compression") is `-/4 | -/5`. IDs 2
 and 3 are not used here. *Guess:* they are the In and Out sections. The
 Noise Gate never appears in the grid.
+
+**Modifier links** (`0x76 + 10·k`, k = 0–19), as found in ROM 1–100:
+
+| Byte | Meaning | Evidence |
+|---|---|---|
+| 0, 1, 2 | Link Low / Mid / High input, 0–100 (mostly `0 50 100`, a straight line) | manual p.25 link page |
+| 3 | Slope, signed (`FC` = −4 … `15` = 21) | 0 on straight links |
+| 4 | Glide time (mostly 10) | |
+| 5 | source: **1 = Ext 1** (the pedal: 18 of the 19 presets marked X use it; 72 Spin Off, "use Ext. 1 to control the speed", links 1 to the Pan+Trem speed), **10 = ENV** (3 and 16 Dyn Delay, 7 and 23 Touchwah), **13, 14 = LFO** (12 Farout Phaser "LFO controlled speed"; 72 Spin Off uses both, likely LFO 1's two outputs). *Guess:* 2–8 Ext 2–8; 9, 11, 12, 15, 16 the Pitch detector, ADSRs and LFO 2 | pedal column, descriptions |
+| 6 | target block, as a routing grid code (0 = none) | equals the ID's thousands + 3 |
+| 7 | 0 in all 100 | |
+| 8–9 | **target parameter ID**, 16-bit big-endian; 0 = no target | see below |
+
+Parameter IDs are `1000 × (block code − 3) + n`, so 2xxx Filters, 3xxx Pan+Trem,
+4xxx Pitch, 5xxx Delay, 6xxx Drive, 7xxx Chorus, 8xxx Reverb (Compressor
+1xxx and the In section 0xxx are not linked in these presets). `n` = 0, 1, 2
+are shared by every sub-algorithm and fit Mix, In Level and Out Level:
+5002 is the Delay Out Level, which the manual's ducking example connects to
+ENV (p.19) and both Dyn Delays use; 5001 is what 10 Mono Pedal Delay's pedal
+moves ("pedal feeds the Delay input"); 8002 is what 36 Pedal Reverb's pedal
+moves ("controls the level of the Reverb"). From 100 up, the hundreds digit is
+**sub-algorithm byte + 1**: Filters WAH-WAH (2) links 2300, Phaser presets (4)
+link 2500/2502, Pan+Trem 3 links 3400, Delay 2 (Slap+Slow) links 5316/5317,
+Chorus 3 (flangers) links 7400/7402. This holds for 48 of the 50 links with a
+target; the two exceptions are Pitch 4150/4151 with sub-algorithm 2 (72 Spin
+Off, 89 Yee Ha). ROM 84 Crunch Phasecomp is marked X in the manual but has no
+Ext 1 link. 36 links name a block but have ID 0.
 
 **Values.** Most parameters are single bytes, signed where needed (`FE` =
 −2, `CE` = −50, as in pan pairs `32 CE` = +50 / −50). Some are 16-bit

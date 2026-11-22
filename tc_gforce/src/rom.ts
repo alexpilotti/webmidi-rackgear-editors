@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Names of the 225 ROM presets, from the Preset List of the owner's manual
-// (docs/G-Force_Manual_EN.pdf, printed pp.57–61). ROM 1–50 use the spelling the
-// unit stores (docs/samples/gforce-rom-50.syx). ROM n is ROM_NAMES[n - 1].
+// (docs/G-Force_Manual_EN.pdf, printed pp.57–61). ROM 1–100 use the spelling the
+// unit stores (docs/samples/gforce-rom-100.syx). ROM n is ROM_NAMES[n - 1].
 
 export const ROM_NAMES: readonly string[] = [
   "Mono Reverb", "Mono Chorus", "Mono Dyn Delay", "Mono Harmony C-maj",
@@ -20,17 +20,17 @@ export const ROM_NAMES: readonly string[] = [
   "For Acoustic Guitar", "Troubadour", "Sunset Groove", "Lipstick Color",
   "Nice Chorus", "Lush Chorus", "Double Jeopardy", "Tone Girdle",
   "Phat Chorus", "Crowded House", "Captain Crunch", "Rockabilly Boogie",
-  "Thick Ducktape Delay", "Slap Back Delay", "A Little Bit Country", "On The Edge",
-  "A Clean Fortress", "Gated Delay", "60's Flanging", "Funky Chorus",
+  "Thick Ducktape Delay", "Slap Back Delay", "A Little bit Country", "On The Edge",
+  "A Clean Fortress", "Gated Delay", "60s Flanging", "Funky Chorus",
   "Flange Yer Face", "Dream Phaser", "Churner", "Stereo Tremolo",
   "Beatle Chords", "Phased Tremolo", "In My Room", "Spin Off",
   "Vibropedal Room", "Tremolo + Reverb", "Day at the Beach", "Spinner",
-  "Wahble Gatelike", "Filterfun Funkypick", "Park the Wah Here", "Tube Scream",
+  "Wahble Gatelike", "Filterfun Funkypick", "Park the Wah here", "Tube Scream",
   "Raunchy Rhythm", "Malcolm", "Rubbery Room", "Crunch Phasecomp",
-  "Fuzzphaser Pedal", "A Little Crunch", "Loose Tubes", "Les is Paul",
-  "Yee Ha", "Flange Box", "Flanger In Verb", "Surround Reverb",
+  "Fuzzphaser Pedal", "A little Crunch", "Loose Tubes", "Less is Paul",
+  "Yee Ha", "Flange Box", "Flanger in Verb", "Surround Reverb",
   "Guitar Hero", "Landau Clean", "Ballad Clean", "Ed Now and Then",
-  "So Stern", "LA Studio Rack", "Straight Lead", "Lead",
+  "So Stern", "LA Studio rack", "Straight Lead", "Lead",
   "Westcoast Lead", "Fusionlead", "Clean Chorused Delay", "Clean Ducked Swell",
   "Echocomplex", "Pedal Feed Delay", "Final Frontier", "Wishey Wash Tap",
   "Twang Slap", "Answering Echo", "Wes M Jazz Lead", "Low Note Thicken",
@@ -66,9 +66,9 @@ export const ROM_NAMES: readonly string[] = [
 ];
 
 /**
- * Blocks routed in ROM 1–50, read from their routing grids in
- * docs/samples/gforce-rom-50.syx (ROM 1–50 copied to User 1–50). Bit k is the
- * block with grid code 4 + k (CPR, FIL, PAN, PIT, DLY, DRV, CHO, REV). The
+ * Blocks routed in ROM 1–100, read from their routing grids in
+ * docs/samples/gforce-rom-100.syx (ROM 1–100 copied to User 1–100). Bit k is
+ * the block with grid code 4 + k (CPR, FIL, PAN, PIT, DLY, DRV, CHO, REV). The
  * Recall page's SELECT grid shows them; later ROM presets are not dumped yet.
  */
 export const ROM_BLOCKS: readonly number[] = [
@@ -77,4 +77,9 @@ export const ROM_BLOCKS: readonly number[] = [
   0xd8, 0xf1, 0x8b, 0xd1, 0xc9, 0x80, 0xc0, 0x90, 0x10, 0x90,
   0xd8, 0x98, 0xd8, 0x84, 0xd0, 0x90, 0xd8, 0x03, 0xd1, 0xd3,
   0x13, 0x9f, 0xc3, 0xf3, 0xd3, 0x9f, 0x93, 0xcf, 0xc1, 0xd1,
+  0x90, 0x13, 0xc3, 0x93, 0x18, 0x93, 0x98, 0x31, 0x91, 0xd8,
+  0x98, 0xd0, 0xd3, 0xd3, 0xcb, 0xa3, 0xdf, 0x04, 0xc3, 0x96,
+  0x84, 0x8c, 0xc9, 0x84, 0xd7, 0x84, 0xc3, 0xd3, 0x8e, 0xb2,
+  0xf3, 0xf2, 0xeb, 0x3b, 0xb3, 0xf3, 0xf2, 0xe3, 0xdf, 0xc3,
+  0xd1, 0xa7, 0x88, 0xd9, 0x98, 0x8a, 0x89, 0xdb, 0x99, 0x90,
 ];

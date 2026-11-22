@@ -1226,7 +1226,7 @@ export class App {
 
   /**
    * SELECT grid labels for preset t of bank b: the blocks it routes, from the
-   * User preset's data or, for ROM 1–50, from ROM_BLOCKS. Blank when unknown.
+   * User preset's data or, for ROM 1–100, from ROM_BLOCKS. Blank when unknown.
    */
   private blockLabels(b: number, t: number): string[] {
     const mask = b === USER ? (this.bank.used(t) ? (t === this.current ? this.edit : this.bank.preset(t)).blockMask() : 0)

@@ -219,17 +219,16 @@ test('ROM names: 225 from the manual, ROM 5 is Mono Doubler', () => {
   eq(ROM_NAMES[224], 'Empty Routing');
 });
 
-test('ROM names 1–50 match the unit (ROM 1–50 copied to User 1–50)', () => {
-  const dump = new Uint8Array(readFileSync(new URL('../docs/samples/gforce-rom-50.syx', import.meta.url)));
-  const bank = new Bank(codec.decodeDump(splitSysex(dump)).stream);
-  for (let i = 0; i < 50; i++) {
-    eq(bank.used(i), true);
-    eq(bank.preset(i).name.trimEnd(), ROM_NAMES[i]);
+const romDump = (f: string) => new Bank(codec.decodeDump(splitSysex(new Uint8Array(readFileSync(new URL(`../docs/samples/${f}`, import.meta.url))))).stream);
+const romBank = romDump('gforce-rom-100.syx');
+
+test('ROM names 1–100 match the unit (ROM copied to the User bank)', () => {
+  for (let i = 0; i < 100; i++) {
+    eq(romBank.used(i), true);
+    eq(romBank.preset(i).name.trimEnd(), ROM_NAMES[i], `ROM ${i + 1}`);
   }
-  eq(bank.used(50), false);
 });
 
-const romBank = new Bank(codec.decodeDump(splitSysex(new Uint8Array(readFileSync(new URL('../docs/samples/gforce-rom-50.syx', import.meta.url))))).stream);
 /** Routing of ROM n as columns of row codes ('-' empty), e.g. '4 | 11/7/8'. */
 const routing = (n: number) => {
   const p = romBank.preset(n - 1);
@@ -270,11 +269,28 @@ test('sub-algorithms of ROM presets: names seen on the unit, guesses marked', ()
   eq(sub(9, 'drive'), ''); // no sub-algorithms
 });
 
-test('ROM_BLOCKS matches the ROM 1–50 dump; ROM 7 as on the unit\'s Recall page', () => {
-  eq(ROM_BLOCKS.length, 50);
-  for (let i = 0; i < 50; i++) eq(ROM_BLOCKS[i], romBank.preset(i).blockMask(), `ROM ${i + 1}`);
+test('ROM_BLOCKS matches the ROM 1–100 dump; ROM 7 as on the unit\'s Recall page', () => {
+  eq(ROM_BLOCKS.length, 100);
+  for (let i = 0; i < 100; i++) eq(ROM_BLOCKS[i], romBank.preset(i).blockMask(), `ROM ${i + 1}`);
   // Photo of Recall, preset 7 Mono Touchwah: SELECT shows CPR FIL / PIT / REV.
   eq(ROUTED.filter((_, k) => ROM_BLOCKS[6] & (1 << k)).map((r) => r.short).join(' '), 'CPR FIL PIT REV');
+});
+
+test('modifier links: 20 × 10 bytes at 0x76, pedal presets have an Ext 1 link', () => {
+  // Presets with "X" (pedal) in the manual's preset list, ROM 1–100.
+  const pedal = [10, 11, 24, 25, 36, 37, 40, 48, 69, 72, 73, 75, 76, 77, 79, 80, 83, 84, 89];
+  const links = (n: number) => Array.from({ length: 20 }, (_, k) => {
+    const p = romBank.preset(n - 1), at = 0x76 + 10 * k;
+    return { src: p.byte(at + 5), block: p.byte(at + 6), id: (p.byte(at + 8) << 8) | p.byte(at + 9) };
+  });
+  // ROM 84 Crunch Phasecomp is the exception: marked X, but it only links ENV and an LFO.
+  for (const n of pedal) eq(links(n).some((l) => l.src === 1 && l.id !== 0), n !== 84, `ROM ${n}`);
+  // A parameter ID's thousands are the block: 1000 × (grid code − 3).
+  for (let n = 1; n <= 100; n++) {
+    for (const l of links(n)) if (l.id) eq(Math.floor(l.id / 1000), l.block - 3, `ROM ${n}`);
+  }
+  // Mono Dyn Delay: the envelope ducks the Delay Out Level (manual p.19's example).
+  eq(links(3)[0], { src: 10, block: 8, id: 5002 });
 });
 
 test('values seen on the unit (photos) sit in their block', () => {

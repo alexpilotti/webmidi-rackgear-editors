@@ -28,8 +28,8 @@ Effects, Modifier and Recall chapters for the rest).
    and scaling. Whatever stays ambiguous gets a one-change dump pair.
 4. Each confirmed parameter goes into `PARAMS` in `src/model.ts` with a test.
 
-**Already found from ROM 1–50** (`samples/gforce-rom-50.syx`; see "Record map
-from ROM 1–50" in [SYSEX_FORMAT.md](SYSEX_FORMAT.md)):
+**Already found from ROM 1–100** (`samples/gforce-rom-100.syx`; see "Record map
+from ROM 1–100" in [SYSEX_FORMAT.md](SYSEX_FORMAT.md)):
 - the routing grid at `0x28` and the block IDs
 - where each block's data starts, with its sub-algorithm byte
 - the likely Noise Gate (`0x48`) and modifier-link (`0x76`) areas
@@ -110,7 +110,7 @@ the routing grid (4 × 8). The Tempo parameters take Ignored or a note value
 | Out Level | dB ? | | | |
 | Mute mode | Mix 0% · FX Out · Output · FX In · Input | | | |
 | Bypass | on / off | | | |
-| Routing position | column 1–8, row 1–4 | | `0x28 + 4·column + row` holds the block ID | ROM 1–50 vs the preset list |
+| Routing position | column 1–8, row 1–4 | | `0x28 + 4·column + row` holds the block ID | ROM 1–100 vs the preset list, photos |
 
 ## In section: Noise Gate (GATE key)
 
@@ -287,12 +287,12 @@ and **not stored in presets** (manual p.51).
 
 ## Modifiers and matrix (MOD key)
 
-Stored with the preset (manual pp.25–28). Not covered by the first dump.
+Stored with the preset (manual pp.25–28). The 20 links are at `0x76` (10 bytes each); see "Modifier links" in [SYSEX_FORMAT.md](SYSEX_FORMAT.md) for the layout and the parameter IDs.
 
 | Item | Parameters |
 |---|---|
 | Matrix | up to 20 links: source (Ext 1–8, LFO 1–2 outputs, ADSR 1–2, ENV, Pitch) → parameter |
-| Link | Low input, Mid input, High input, Slope, Glide time |
+| Link | Low input, Mid input, High input, Slope, Glide time: bytes 0–4 of each link at `0x76 + 10·k` |
 | Envelope follower | Attack, Release |
 | Pitch detector | Range: 6s GTR D-E · 7s GTR A-E · 4s Bass D-E |
 | ADSR 1, 2 | Attack, Decay, Sustain, Sustain level, Release, Mode (Once, Once-Retrig, Loop, Loop-Retrig, Sustain, Sust-Retrig), Threshold |
