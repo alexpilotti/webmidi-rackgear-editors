@@ -13,8 +13,9 @@ worked out from dumps of a real unit (`samples/`), sent with
 | `gforce-user-bank-b.syx` | as A, renamed "TEST ABC" |
 | `gforce-user-bank-c.syx` | as B, DECAY TIME 2.5 s |
 | `gforce-user-bank-d.syx` | User 1 "Mono Reverb", User 2 "Tremendous Delay", User 5 "Rhythmic"; Users 3–4 empty |
-| `gforce-rom-001-100.syx` | ROM 1–100 copied unedited to User 1–100 (see "Record map from ROM 1–200"). An earlier dump of ROM 1–50 alone was byte-identical to its User 1–50, unused-block bytes included |
+| `gforce-rom-001-100.syx` | ROM 1–100 copied unedited to User 1–100 (see "Record map from ROM 1–225"). An earlier dump of ROM 1–50 alone was byte-identical to its User 1–50, unused-block bytes included |
 | `gforce-rom-101-200.syx` | ROM 101–200 copied unedited to User 1–100. 16 names differ from the manual, 15 in spelling only; ROM 196 is "Delay Tap Tempo" on the unit and "Straight Delay" in the manual |
+| `gforce-rom-201-225.syx` | ROM 201–225 copied unedited to User 1–25. 3 names differ in spelling; 223–224 are "Slow Noise Gate" and "Fast Noise Gate" on the unit, both "Noise Gate Slow" in the manual |
 
 A first capture with an empty User bank sent only the header message, with a
 block count of `02` (its data blocks were not recorded).
@@ -76,10 +77,11 @@ other presets may lay out their blocks differently.
 The checklist of parameters still to find, and the method, is in
 [PARAMETERS.md](PARAMETERS.md).
 
-## Record map from ROM 1–200
+## Record map from ROM 1–225
 
-`gforce-rom-001-100.syx` holds ROM 1–100 and `gforce-rom-101-200.syx` ROM
-101–200, each copied unedited to User 1–100. The map below comes from
+`gforce-rom-001-100.syx`, `gforce-rom-101-200.syx` and
+`gforce-rom-201-225.syx` hold all 225 ROM presets, copied unedited to the
+User bank. The map below comes from
 comparing those
 100 records with the manual's preset list
 (descriptions, Mono / Stereo / 3-Way, pedal column). Single-change pairs are
@@ -93,18 +95,18 @@ the unit, with its box name: 4 CPR, 5 FIL, 6 PAN, 7 PIT, 8 DLY, 9 DRV, 10 CHO,
 
 | Offset | Size | Meaning | Evidence |
 |---|---|---|---|
-| `0x016` | 2 | `03 00` in 197 of 200; `01 00` in 92 Surround Reverb, 175 Pedal Hold + Reverb and 176 Very Scary Horror. *Unknown* | |
+| `0x016` | 2 | `03 00` in 220 of 225; `01 00` in 92, 175, 176 and both Noise Gate presets (223, 224). *Guess:* bit 1 set = Noise Gate off (225 Empty Routing has 3) | single-block Noise Gate presets |
 | `0x018` | 8 × 2 | one value 0–3 per block, at even offsets, in block-ID order (Comp … Reverb). *Unknown*; not the sub-algorithm (Comp reaches 3). Set for blocks that are not routed too | varies with the preset |
 | `0x028` | 32 | **routing grid**, 8 columns × 4 rows, column by column: cell = `0x28 + 4·column + row` | see below |
-| `0x048` | 10 | *Guess:* In section / Noise Gate. `0x49` signed −60 … −14 (Threshold dB?), `0x4A` 0–50 (Max. Damping dB?), `0x4B` 3–100 (Release?), `0x4C` 0/1 (Mode?), `0x4D` signed 0 … −9 (Level dB?); `0x4E` = 100, 75 in six presets (105, 113, 119, 123, 193, 200) | ranges over ROM 1–200 |
+| `0x048` | 10 | *Guess:* In section / Noise Gate. `0x49` signed −60 … −14 (Threshold dB?), `0x4A` 0–50 (Max. Damping dB?), `0x4B` 3–100 = **Release rate** (15 in 223 Slow Noise Gate, 100 in 224 Fast Noise Gate), `0x48`, `0x4C` 0/1 (Mode?), `0x4D` signed 0 … −9 (Level dB?); `0x4E` = 100, 75 in 16 presets | ranges over ROM 1–225; 223 vs 224 |
 | `0x076` | 200 | **modifier matrix**: 20 links of 10 bytes (the manual's maximum is 20), see below. Unused links are zeros | every pedal preset has links |
 | `0x140` | ~38 | *Guess:* global or In/Out section; mostly constant | |
-| `0x166` | 20 | **Compressor**; `0x166` = sub-algorithm (0 Simple, 1 Advanced) | 1 in 60 of ROM 1–200, none before 40 |
+| `0x166` | 20 | **Compressor**; `0x166` = sub-algorithm (0 Simple, **1 = ADVANCED**, photo of ROM 203). Confirmed by that photo: `0x172` = **THRESHOLD** dB, signed (−17 = `EF`), `0x173` = **RATIO** step (12 = 16:1), `0x174` = **RELEASE** dB/s (18), `0x175` = **KNEE MODE** (0 Soft, 1 Hard), `0x168` = **IN LEVEL** dB, signed (0), `0x169` = **OUT LEVEL** dB, signed (−5 = `FB`). 202 Soft Compressor has knee 0; 204 Limiter has ratio 15, *guess:* ∞ | ROM 203 photo; 202–204 |
 | `0x17A` | 34 | **Filters**; `0x17A` = sub-algorithm: **2 = WAH-WAH** (photo, ROM 7); from the preset list 0 Parametric EQ (38 Go Direct "EQ"), 1 Resonance (173 "Resonance Filter"), 3 Formant (140 "Stepped Formant Filter", the talk-box presets), 4 Phaser (every Phaser preset). Not the manual's order. `0x17B` = MIX LEVEL % (35, photo), `0x187` = Wah FREQ ×100 (45 = 0.45, photo) | ROM 7 photo, preset list |
 | `0x19C` | 22 | **Pan+Trem**; `0x19C` = sub-algorithm: 2 Panner (194 Stereo Pan), 3 Surround Panner (195 Surround Panner, 15 Wide Panner, the rotary presets), 1 in all three single-block Tremolos (191–193; Classic, Stereo, Square), 0 in 6 Mono Tremolo | single-block presets |
 | `0x1B2` | 36 | **Pitch**; `0x1B2` = sub-algorithm: 0 Intelligent (Harmony presets), 1 one voice (11/25 "lower octave", 33 "octave up"), 2 two voices, 3 Detune (all Doubler presets) | |
 | `0x1D6` | ~50 | **Delay**; `0x1D6` = sub-algorithm: **4 = ONE-TAP** (photo, ROM 3; also 198 Tape Delay); from the preset list 1 Dual (197 "Two Delays" L 500 / R 400 ms, 199 Ping-Pong), 2 Dual Two-tap (29 Slap+Slow), 3 Quad-tap (200 "4 Tap Delay", 147 Expandelay "first four repeats"), 0 likely Stereo (196, one 500 ms Delay). One-Tap: `0x1E3` = TIME, 16-bit little-endian ms (`36 01` = 310, photo), `0x1EE` = FEEDBACK % (24, photo). `0x1E5`, `0x1E7`, `0x1E9` hold further 16-bit times, likely the other taps' | ROM 3 photo, preset list |
-| `0x208` | ~38 | **Drive** (no sub-algorithms); `0x214`–`0x217` differ only in presets 9, 22, 44, which route the Drive | |
+| `0x208` | ~38 | **Drive** (no sub-algorithms); 220–222 Drive 1–3 differ in `0x20B` (signed, −14 / −12 / −16), `0x214`, `0x215`, `0x216` and `0x218`, which also vary only in presets that route the Drive | 220–222 |
 | `0x22E` | 24 | **Chorus/Flanger**; `0x22E` = sub-algorithm: 1 in the straight Chorus presets (186, 187, 190 Vibrato), 3 in the Flanger presets (188, 189, 44, the flanging presets). *Guess:* manual order (0 Classic Chorus, 1 Advanced Chorus, 2 Classic Flanger, 3 Advanced Flanger) | preset list |
 | `0x246` | 32 | **Reverb**; `0x246` = sub-algorithm, 1 = Advanced (photo of Mono Reverb). 0 only in the six single-block Reverbs 180–185 where the Reverb is routed, *guess:* Simple. `0x253` = DECAY TIME | |
 
@@ -121,22 +123,22 @@ parallel in column 1. 38 Go Direct ("EQ & Compression") is `-/4 | -/5`. IDs 2
 and 3 are not used here. *Guess:* they are the In and Out sections. The
 Noise Gate never appears in the grid.
 
-**Modifier links** (`0x76 + 10·k`, k = 0–19), as found in ROM 1–200:
+**Modifier links** (`0x76 + 10·k`, k = 0–19), as found in ROM 1–225:
 
 | Byte | Meaning | Evidence |
 |---|---|---|
 | 0, 1, 2 | Link Low / Mid / High input, 0–100 (mostly `0 50 100`, a straight line) | manual p.25 link page |
 | 3 | Slope, signed (`FC` = −4 … `15` = 21) | 0 on straight links |
 | 4 | Glide time (mostly 10) | |
-| 5 | source: **1–4 = Ext 1–4** (1 is the pedal: 43 of the 45 presets marked X use it; 174 Jam with Loop, "Ext. 1 controls the looping, Ext. 2 controls the adding", uses 1 and 2; 173 links 1, 2, 3, 4 to four Delay taps), **10 = ENV** (Dyn Delays, Touchwahs; 121 "Envelope controlled crossfade between Reverb and Delay" links 10 to both Mixes, 5000 and 8000; 165 and 167 speed a panner up or down with the signal), **13, 14 = LFO 1, 15, 16 = LFO 2**, likely each LFO's two outputs (164 War of the Worlds moves its two pitch voices with 13 and 15; 171 Who's Next's autowah uses 15). *Guess:* 5–8 Ext 5–8; 9, 11, 12 the ADSRs and the Pitch detector | pedal column, descriptions |
+| 5 | source: **1–4 = Ext 1–4** (1 is the pedal: 51 of the 53 presets marked X use it; 174 Jam with Loop, "Ext. 1 controls the looping, Ext. 2 controls the adding", uses 1 and 2; 173 links 1, 2, 3, 4 to four Delay taps), **10 = ENV** (Dyn Delays, Touchwahs; 121 "Envelope controlled crossfade between Reverb and Delay" links 10 to both Mixes, 5000 and 8000; 165 and 167 speed a panner up or down with the signal), **13, 14 = LFO 1, 15, 16 = LFO 2**, likely each LFO's two outputs (164 War of the Worlds moves its two pitch voices with 13 and 15; 171 Who's Next's autowah uses 15). *Guess:* 5–8 Ext 5–8; 9, 11, 12 the ADSRs and the Pitch detector | pedal column, descriptions |
 | 6 | target block, as a routing grid code (0 = none) | equals the ID's thousands + 3 |
-| 7 | 0 in all 200 | |
+| 7 | 0 in all 225 | |
 | 8–9 | **target parameter ID**, 16-bit big-endian; 0 = no target | see below |
 
 Parameter IDs are `1000 × (block code − 3) + n`, so 2xxx Filters, 3xxx Pan+Trem,
 4xxx Pitch, 5xxx Delay, 6xxx Drive, 7xxx Chorus, 8xxx Reverb (Compressor
 1xxx and the In section 0xxx are not linked in these presets). This holds for
-all 165 links with a target in ROM 1–200. `n` = 0, 1, 2 are shared by every
+all 183 links with a target in ROM 1–225. `n` = 0, 1, 2 are shared by every
 sub-algorithm and fit Mix, In Level and Out Level: 5002 is the Delay Out
 Level, which the manual's ducking example connects to ENV (p.19) and both Dyn
 Delays use; 5001 is what 10 Mono Pedal Delay's pedal moves ("pedal feeds the

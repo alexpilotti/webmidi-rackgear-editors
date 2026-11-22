@@ -5,7 +5,7 @@ import { joinMessages, splitSysex, type Codec } from './codec.ts';
 import { GfMidi } from './midi.ts';
 import { ClockMeter } from './clock.ts';
 import {
-  recallBankProgram, CARD_BANKS, MAX_BANK, cardIndex, romIndex, userIndex, Bank, BLOCKS, cleanName, NAME_LEN, paramAt, PARAMS, PARAMS_AT, Preset, RECORD_SIZE, SLOTS,
+  recallBankProgram, CARD_BANKS, MAX_BANK, cardIndex, romIndex, userIndex, Bank, BLOCKS, cleanName, NAME_LEN, paramAt, paramValue, PARAMS, PARAMS_AT, Preset, RECORD_SIZE, SLOTS,
   PIPE, ROUTED, ROUTING_AT, ROUTING_COLS, ROUTING_ROWS, routedBlock, type BlockId, type ParamDef,
 } from './model.ts';
 import { Billboard, GraphicLcd, h, Knob, NumberField, PanelKey } from './ui/components.ts';
@@ -1226,7 +1226,7 @@ export class App {
 
   /**
    * SELECT grid labels for preset t of bank b: the blocks it routes, from the
-   * User preset's data or, for ROM 1–200, from ROM_BLOCKS. Blank when unknown.
+   * User preset's data or, for ROM presets, from ROM_BLOCKS. Blank when unknown.
    */
   private blockLabels(b: number, t: number): string[] {
     const mask = b === USER ? (this.bank.used(t) ? (t === this.current ? this.edit : this.bank.preset(t)).blockMask() : 0)
@@ -1560,7 +1560,7 @@ export class App {
         const p = paramAt(this.cursor);
         const v = this.edit.byte(this.cursor);
         const stored = this.bank.preset(this.current).byte(this.cursor);
-        const fmt = (q: ParamDef | undefined, x: number) => (q ? q.format(x) : `${hex2(x)}H`);
+        const fmt = (q: ParamDef | undefined, x: number) => (q ? q.format(paramValue(q, x)) : `${hex2(x)}H`);
         const rows: ListRow[] = [{ label: `U${pad3(this.current + 1)} ${this.edit.name}`.toUpperCase(), header: true }];
         for (let off = PARAMS_AT; off < RECORD_SIZE; off++) {
           const q = paramAt(off);
@@ -1573,7 +1573,7 @@ export class App {
           rows,
           cursor: 1 + this.cursor - PARAMS_AT,
           barLabel: p ? p.label.toUpperCase() : `BYTE ${this.cursor}`,
-          bar: p ? (v - p.min) / (p.max - p.min) : v / 255,
+          bar: p ? (paramValue(p, v) - p.min) / (p.max - p.min) : v / 255,
           barNote: v !== stored ? `WAS ${fmt(p, stored).toUpperCase()}` : `${v}`,
         });
         label = `Edit ${p ? p.label : `byte ${this.cursor}`}: ${fmt(p, v)}`;

@@ -121,10 +121,10 @@ A faulty transfer can leave the User bank empty, so keep the backup.
 
 | Control | What it does |
 |---|---|
-| RECALL | as on the unit (manual p.17): PARAMETER moves the cursor between SELECT, BANK and PRESET (its label is inverted); VALUE changes that field (BANK switches ROM / USER / CARD 1–6, PRESET previews); ENTER recalls on the G-Force (a User preset is also loaded into the edit buffer). The SELECT grid shows ALL and the blocks the preset uses, at the unit's fixed places (CPR FIL / PAN PIT DLY / DRV CHO REV): from the data for User presets, from the ROM 1–200 dumps for those ROM presets, blank otherwise (ROM 201–225 aren't dumped yet). SELECT stays on ALL: partial recall is on the unit only |
+| RECALL | as on the unit (manual p.17): PARAMETER moves the cursor between SELECT, BANK and PRESET (its label is inverted); VALUE changes that field (BANK switches ROM / USER / CARD 1–6, PRESET previews); ENTER recalls on the G-Force (a User preset is also loaded into the edit buffer). The SELECT grid shows ALL and the blocks the preset uses, at the unit's fixed places (CPR FIL / PAN PIT DLY / DRV CHO REV): from the data for User presets, from the ROM dumps for ROM presets (all 225), blank for card presets. SELECT stays on ALL: partial recall is on the unit only |
 | STORE | VALUE chooses the target slot, ENTER stores the edit buffer there |
 | EFFECTS | the Effects display, drawn like the unit's: "Eff." with the MIX / EDIT / ROUTING / LAYOUT tabs, the In and OUT bars and the edited User preset's block diagram (CPR, FIL, PAN, PIT, DLY, DRV, CHO, REV boxes, as named on the unit, wired through the 8 × 4 routing grid). ◄ ► switch EDIT and ROUTING (MIX and LAYOUT are on the unit only). On EDIT, PARAMETER moves the cursor from block to block; on ROUTING, over every cell. The value strip names the cell, its block and its sub-algorithm. ENTER on a block opens its data at the sub-algorithm byte: there PARAMETER moves through the bytes, VALUE changes them, and EXIT goes back to the diagram. The routing itself is read-only: change it on the unit |
-| GATE … REVERB | jump to that block's decoded parameters (REVERB: DECAY TIME). Other blocks are not decoded yet. |
+| GATE … REVERB | jump to that block's decoded parameters (COMPRESS: THRESHOLD, RATIO, KNEE MODE, RELEASE, IN LEVEL, OUT LEVEL; REVERB: DECAY TIME). Other blocks are not decoded yet. |
 | I/O SETUP | MIDI, CONTROL and AUDIO pages (◄ ►), as on the unit. The MIDI page shows and edits the editor's settings (Basic channel, Program change, Bank selection, Bank size, SysEx ID), which must match the unit's; Mapping mode must be External on the unit. CONTROL and AUDIO are listed but set on the unit only |
 | UTILITY | CONFIG and BILLBOARD pages (◄ ►), as on the unit. In CONFIG, USER BANK TO MIDI (the editor receives) and MIDI TO USER BANK (the editor sends) run with ENTER; the other items are on the unit only. Tuner MIDI Out must be Off on the unit for dumps (manual p.29) |
 | ◄ ► | switch the pages of Effects (EDIT, ROUTING), I/O Setup and Utility; elsewhere they step like PARAMETER |
@@ -144,7 +144,7 @@ Keyboard shortcuts: `R` recall, `S` store, `E` effects, `U` utility, `I` I/O set
 
 ## Assumptions to verify on hardware
 
-Everything has been tested against the dumps in `docs/samples/` (four User banks A–D, and ROM 1–200 copied to the User bank in two dumps, which check the ROM names, routings and modifier links) and a
+Everything has been tested against the dumps in `docs/samples/` (four User banks A–D, and all 225 ROM presets copied to the User bank in three dumps, which check the ROM names, routings and modifier links) and a
 simulated unit, not against the G-Force receiving data.
 
 1. **Receiving a dump**: it isn't known whether the G-Force accepts a bank
@@ -181,18 +181,24 @@ simulated unit, not against the G-Force receiving data.
    Store, Utility and Routing screens are approximations. The SELECT grid's
    fixed block places come from one photo (ROM 7: CPR FIL / PIT / REV) and
    the block-code order; PAN, DLY, DRV and CHO's places are inferred.
-11. **Routing and sub-algorithms**: found by comparing ROM 1–200
-   (`docs/samples/gforce-rom-001-100.syx`, `gforce-rom-101-200.syx`) with the
+11. **Routing and sub-algorithms**: found by comparing ROM 1–225
+   (`docs/samples/gforce-rom-*.syx`, all 225 presets) with the
    manual's preset list, not by single-change dumps (see "Record map from ROM
-   1–200" in `docs/SYSEX_FORMAT.md`). The grid at `0x28` (8 columns × 4 rows,
-   column by column) and its block codes fit all 200 presets, and the unit's Effects
+   1–225" in `docs/SYSEX_FORMAT.md`). The grid at `0x28` (8 columns × 4 rows,
+   column by column) and its block codes fit all 225 presets, and the unit's Effects
    display matches them for ROM 1–7 and 9 (photos), which also show every
    block code with its box name. Only the grid is confirmed; the per-block
-   bytes are not. Three sub-algorithm names were read off the unit's LCD:
-   Reverb 1 ADVANCED (ROM 1), Filters 2 WAH-WAH (ROM 7) and Delay 4 ONE-TAP
-   (ROM 3). These show the bytes do *not* follow the manual's order. Every
-   other name is a guess from the preset descriptions and is shown with a
-   trailing `?` (for example `DETUNE?`). An unknown value shows as `SUB n`.
+   bytes are not. Four sub-algorithm names were read off the unit's LCD:
+   Reverb 1 ADVANCED (ROM 1), Filters 2 WAH-WAH (ROM 7), Delay 4 ONE-TAP
+   (ROM 3) and Compressor 1 ADVANCED (ROM 203). These show the bytes do *not*
+   follow the manual's order. Every other name is a guess from the preset
+   descriptions and is shown with a trailing `?` (for example `DETUNE?`). An
+   unknown value shows as `SUB n`.
+12. **Compressor parameters**: THRESHOLD, RATIO, KNEE MODE, RELEASE, IN LEVEL
+   and OUT LEVEL match photos of ROM 203's Edit page, but only Ratio step 12 (16:1) is seen;
+   the other steps follow the usual TC series and show with a `?`. The
+   editing ranges (Threshold, In and Out Level −40 … 0 dB, Release 0 … 100
+   dB/s) are not in the manual.
 
 Bytes the editor doesn't understand are kept exactly as received. A received
 bank that is sent back unedited is byte-identical.

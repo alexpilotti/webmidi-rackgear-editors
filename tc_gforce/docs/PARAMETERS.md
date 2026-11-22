@@ -28,8 +28,8 @@ Effects, Modifier and Recall chapters for the rest).
    and scaling. Whatever stays ambiguous gets a one-change dump pair.
 4. Each confirmed parameter goes into `PARAMS` in `src/model.ts` with a test.
 
-**Already found from ROM 1–200** (`samples/gforce-rom-001-100.syx`,
-`gforce-rom-101-200.syx`; see "Record map from ROM 1–200" in
+**Already found from all 225 ROM presets** (`samples/gforce-rom-*.syx`; see
+"Record map from ROM 1–225" in
 [SYSEX_FORMAT.md](SYSEX_FORMAT.md)):
 - the routing grid at `0x28` and the block IDs
 - where each block's data starts, with its sub-algorithm byte
@@ -106,12 +106,12 @@ the routing grid (4 × 8). The Tempo parameters take Ignored or a note value
 
 | Parameter | Range / values | LCD name | Offset | Evidence |
 |---|---|---|---|---|
-| Mix | % ? | MIX LEVEL | sub-algorithm byte + 1 (Filters `0x17B`) | ROM 7 photo: 35 %. *Guess* for the other blocks: the byte after each sub-algorithm byte reads 0–100 in all of ROM 1–200 |
+| Mix | % ? | MIX LEVEL | sub-algorithm byte + 1 (Filters `0x17B`) | ROM 7 photo: 35 %. *Guess* for the other blocks: the byte after each sub-algorithm byte reads 0–100 in all of ROM 1–225 |
 | In Level | dB ? | | | |
 | Out Level | dB ? | | | |
 | Mute mode | Mix 0% · FX Out · Output · FX In · Input | | | |
 | Bypass | on / off | | | |
-| Routing position | column 1–8, row 1–4 | | `0x28 + 4·column + row` holds the block ID | ROM 1–200 vs the preset list, photos |
+| Routing position | column 1–8, row 1–4 | | `0x28 + 4·column + row` holds the block ID | ROM 1–225 vs the preset list, photos |
 
 ## In section: Noise Gate (GATE key)
 
@@ -120,7 +120,7 @@ the routing grid (4 × 8). The Tempo parameters take Ignored or a note value
 | Mode | Hard · Soft | | | |
 | Threshold | dB ? | | | |
 | Max. Damping | dB ? (0 = off) | | | |
-| Release rate | dB/s ? | | | |
+| Release rate | dB/s ? | | `0x4B` | 223 Slow 15 vs 224 Fast 100 Noise Gate |
 | Level | dB ? | | | |
 
 ## Compressor (COMPRESS key)
@@ -129,12 +129,16 @@ Sub-algorithms: Simple, Advanced.
 
 | Parameter | Range / values | Sub-algorithm | LCD name | Offset | Evidence |
 |---|---|---|---|---|---|
-| Threshold | dB ? | both | | | |
-| Ratio | n:1 ? | both | | | |
-| Knee Mode | Soft · Hard | Advanced | | | |
-| Release | dB/s ? | Advanced | | | |
-| In Level | dB ? | both | | | |
-| Out Level | dB ? | both | | | |
+| Threshold | dB, signed (ROM presets −30 … 0) | both | THRESHOLD | `0x172` | ROM 203 photo: −17 dB = `EF`; 202–204: −6, −17, −20 |
+| Ratio | step 0–15 | both | RATIO | `0x173` | ROM 203 photo: 16:1 = 12. *Guess* for the other steps: 1.0, 1.12, 1.25, 1.4, 1.6, 1.8, 2.0, 2.5, 3.2, 4.0, 5.6, 8.0, 16, 32, 64, ∞ (204 Limiter = 15) |
+| Knee Mode | Soft · Hard | Advanced | KNEE MODE | `0x175` (0 Soft, 1 Hard) | ROM 203 photo: HARD = 1; 202 Soft Compressor = 0 |
+| Release | dB/s (ROM presets 0 … 100) | Advanced | RELEASE | `0x174` | ROM 203 photo: 18 dB/s = 18 |
+| In Level | dB, signed (ROM presets −8 … 0) | both | IN LEVEL | `0x168` | ROM 203 photo: 0 dB |
+| Out Level | dB, signed (ROM presets −10 … 0) | both | OUT LEVEL | `0x169` | ROM 203 photo: −5 dB = `FB` |
+
+The Edit page groups them as GENERAL (Threshold, Ratio, Knee Mode, Release)
+and GLOBAL (In Level, Out Level); it shows no Mix. `0x167` (100 in 203, 47–100
+across the ROM) sits where other blocks keep Mix and is still unexplained.
 
 ## Filters (FILTERS key)
 

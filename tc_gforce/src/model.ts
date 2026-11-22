@@ -38,6 +38,8 @@ export interface ParamDef {
   offset: number;
   min: number;
   max: number;
+  /** The byte is two's complement (FF = −1). */
+  signed?: boolean;
   format: (v: number) => string;
   /** How the offset and encoding were found. */
   source: string;
@@ -69,11 +71,85 @@ export const PARAMS: ParamDef[] = [
     format: (v) => `${(v / 10).toFixed(1)} s`,
     source: 'samples B→C: 2.4 s → 2.5 s changed this byte 0x18 → 0x19 (Mono Reverb)',
   },
+  // Compressor, Advanced: photos of ROM 203 Hard Compressor's Edit page (THRESHOLD −17 dB,
+  // RATIO 16:1, KNEE MODE HARD, RELEASE 18 dB/s, IN LEVEL 0 dB, OUT LEVEL −5 dB) against its record; 202 Soft Compressor
+  // has knee 0. Ranges are not in the manual: these cover every ROM preset.
+  {
+    id: 'compThreshold',
+    block: 'compress',
+    label: 'Threshold',
+    offset: 0x172,
+    min: -40,
+    max: 0,
+    signed: true,
+    format: (v) => `${v} dB`,
+    source: 'ROM 203 photo: THRESHOLD -17 dB = EF; ROM presets use -30 … 0',
+  },
+  {
+    id: 'compRatio',
+    block: 'compress',
+    label: 'Ratio',
+    offset: 0x173,
+    min: 0,
+    max: 15,
+    format: (v) => (v === 12 ? '16:1' : `${COMP_RATIOS[v] ?? v}?`),
+    source: 'ROM 203 photo: RATIO 16:1 = step 12; other steps guessed from the TC series, 15 (∞) in 204 Limiter',
+  },
+  {
+    id: 'compKnee',
+    block: 'compress',
+    label: 'Knee Mode',
+    offset: 0x175,
+    min: 0,
+    max: 1,
+    format: (v) => (v ? 'Hard' : 'Soft'),
+    source: 'ROM 203 photo: KNEE MODE HARD = 1; 202 Soft Compressor = 0',
+  },
+  {
+    id: 'compRelease',
+    block: 'compress',
+    label: 'Release',
+    offset: 0x174,
+    min: 0,
+    max: 100,
+    format: (v) => `${v} dB/s`,
+    source: 'ROM 203 photo: RELEASE 18 dB/s = 18; ROM presets use 0 … 100',
+  },
+  {
+    id: 'compInLevel',
+    block: 'compress',
+    label: 'In Level',
+    offset: 0x168,
+    min: -40,
+    max: 0,
+    signed: true,
+    format: (v) => `${v} dB`,
+    source: 'ROM 203 photo: IN LEVEL 0 dB = 00; ROM presets use -8 … 0',
+  },
+  {
+    id: 'compOutLevel',
+    block: 'compress',
+    label: 'Out Level',
+    offset: 0x169,
+    min: -40,
+    max: 0,
+    signed: true,
+    format: (v) => `${v} dB`,
+    source: 'ROM 203 photo: OUT LEVEL -5 dB = FB; ROM presets use -10 … 0',
+  },
 ];
 
+/** Compressor ratio steps (n:1). Only step 12 = 16 is seen on the unit; the rest are a guess. */
+const COMP_RATIOS = ['1.0:1', '1.12:1', '1.25:1', '1.4:1', '1.6:1', '1.8:1', '2.0:1', '2.5:1', '3.2:1', '4.0:1', '5.6:1', '8.0:1', '16:1', '32:1', '64:1', 'Inf:1'];
+
+/** A parameter's value from its raw byte. */
+export function paramValue(p: ParamDef, raw: number): number {
+  return p.signed && raw > 127 ? raw - 256 : raw;
+}
+
 // ---------------------------------------------------------------------------
-// Routing grid and sub-algorithms, found by comparing ROM 1–200
-// (samples/gforce-rom-001-100.syx, gforce-rom-101-200.syx) with the manual's
+// Routing grid and sub-algorithms, found by comparing ROM 1–225
+// (samples/gforce-rom-*.syx) with the manual's
 // preset list. Read-only: no single-change dump confirms them yet (see README,
 // assumptions).
 
@@ -99,7 +175,8 @@ export interface RoutedBlock {
 }
 
 export const ROUTED: RoutedBlock[] = [
-  { code: 4, block: 'compress', short: 'CPR', subAt: 0x166, subs: ['SIMPLE', 'ADVANCED'] },
+  // ROM 203 Hard Compressor (1) shows COMPRESS - ADVANCED.
+  { code: 4, block: 'compress', short: 'CPR', subAt: 0x166, subs: ['SIMPLE', 'ADVANCED'], seen: [1] },
   // ROM 7 Touchwah (2) shows FILTER - WAH-WAH: not the manual's order. The rest fit the preset list:
   // 0 EQ presets, 1 173 "Resonance Filter", 3 140 "Stepped Formant Filter", 4 the Phaser presets.
   { code: 5, block: 'filters', short: 'FIL', subAt: 0x17a, subs: ['PARAMETRIC EQ', 'RESONANCE', 'WAH-WAH', 'FORMANT', 'PHASER'], seen: [2] },
@@ -164,10 +241,10 @@ export class Preset {
   }
 
   get(p: ParamDef): number {
-    return this.data[p.offset];
+    return paramValue(p, this.data[p.offset]);
   }
   set(p: ParamDef, v: number): void {
-    this.data[p.offset] = Math.max(p.min, Math.min(p.max, Math.round(v)));
+    this.data[p.offset] = Math.max(p.min, Math.min(p.max, Math.round(v))) & 0xff;
   }
 
   /** Grid code at column c (0–7), row r (0–3): 0 empty, PIPE, or a block code. */

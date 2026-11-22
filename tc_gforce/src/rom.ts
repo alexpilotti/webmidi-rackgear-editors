@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Names of the 225 ROM presets, from the Preset List of the owner's manual
-// (docs/G-Force_Manual_EN.pdf, printed pp.57–61). ROM 1–200 use the names the
-// unit stores (docs/samples/gforce-rom-001-100.syx, gforce-rom-101-200.syx); ROM 196
-// is "Straight Delay" in the manual. ROM n is ROM_NAMES[n - 1].
+// (docs/G-Force_Manual_EN.pdf, printed pp.57–61), spelled as the unit stores
+// them (docs/samples/gforce-rom-*.syx). ROM 196 is "Straight Delay" in the
+// manual; 223–224 are both "Noise Gate Slow" there. ROM n is ROM_NAMES[n - 1].
 
 export const ROM_NAMES: readonly string[] = [
   "Mono Reverb", "Mono Chorus", "Mono Dyn Delay", "Mono Harmony C-maj",
@@ -59,19 +59,18 @@ export const ROM_NAMES: readonly string[] = [
   "Two Delays", "Tape Delay", "Triplet Ping-pong", "4 Tap Delay Pedal",
   "Dynamic Delay", "Soft Compressor", "Hard Compressor", "Limiter",
   "Dual Detune Pedal", "Whammy Down", "Whammy Up", "G-major Pitch Pedal",
-  "D-minor 5 and 3", "Octave Dubbing", "Phase Off", "Phaser Pedal Speed",
-  "Clean Wah Pedal", "Clean Touch-Wah", "Clean Auto Wah", "Formant Touch",
+  "D-minor 5 and 3", "Octave Dubbing", "Phase off", "Phaser Pedal Speed",
+  "Clean Wah-pedal", "Clean Touch-wah", "Clean Auto Wah", "Formant Touch",
   "Formant Pedal", "Resonance Pedal", "Auto Resonance", "Drive 1",
-  "Drive 2", "Drive 3", "Noise Gate Slow", "Noise Gate Slow",
+  "Drive 2", "Drive 3", "Slow Noise Gate", "Fast Noise Gate",
   "Empty Routing",
 ];
 
 /**
- * Blocks routed in ROM 1–200, read from their routing grids in
- * docs/samples/gforce-rom-001-100.syx and gforce-rom-101-200.syx (ROM copied to the
- * User bank). Bit k is the block with grid code 4 + k (CPR, FIL, PAN, PIT, DLY,
- * DRV, CHO, REV). The Recall page's SELECT grid shows them; ROM 201–225 are
- * not dumped yet.
+ * Blocks routed in each ROM preset, read from the routing grids in
+ * docs/samples/gforce-rom-*.syx (all 225 ROM presets copied to the User bank).
+ * Bit k is the block with grid code 4 + k (CPR, FIL, PAN, PIT, DLY, DRV, CHO,
+ * REV). The Recall page's SELECT grid shows them.
  */
 export const ROM_BLOCKS: readonly number[] = [
   0x81, 0xc1, 0x91, 0x99, 0x89, 0x84, 0x8b, 0x92, 0xa1, 0xd1,
@@ -94,4 +93,7 @@ export const ROM_BLOCKS: readonly number[] = [
   0x46, 0x22, 0x92, 0x98, 0xd9, 0xdb, 0x9b, 0xdb, 0x48, 0x80,
   0x80, 0x80, 0x80, 0x80, 0x80, 0x40, 0x40, 0x40, 0x40, 0x40,
   0x04, 0x04, 0x04, 0x04, 0x04, 0x10, 0x10, 0x10, 0x10, 0x10,
+  0x10, 0x01, 0x01, 0x01, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+  0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x20,
+  0x20, 0x20, 0x00, 0x00, 0x00,
 ];
