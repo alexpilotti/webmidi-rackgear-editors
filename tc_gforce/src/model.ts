@@ -59,8 +59,8 @@ export const BLOCKS: { id: BlockId; label: string }[] = [
   { id: 'reverb', label: 'REVERB' },
 ];
 
-/** Decoded parameters. Each needs a dump pair that differs by one known change. */
-export const PARAMS: ParamDef[] = [
+/** Block-specific decoded parameters (the unit's GENERAL section), checked against dumps or photos. */
+const BLOCK_PARAMS: ParamDef[] = [
   {
     id: 'reverbDecay',
     block: 'reverb',
@@ -138,6 +138,64 @@ export const PARAMS: ParamDef[] = [
     source: 'ROM 203 photo: OUT LEVEL -5 dB = FB; ROM presets use -10 … 0',
   },
 ];
+
+/** Start of each block's data: its sub-algorithm byte (Drive has none, the byte is 0). */
+export const BLOCK_AT: Record<Exclude<BlockId, 'gate'>, number> = {
+  compress: 0x166, filters: 0x17a, pantrem: 0x19c, pitch: 0x1b2, delay: 0x1d6, drive: 0x208, chorus: 0x22e, reverb: 0x246,
+};
+
+/**
+ * Mute modes, as the unit's MUTE MODE list shows them from the bottom (photo of ROM 1's
+ * Reverb: MIX 0%, FX OUT, OUTPUT, FX IN, INPUT, with its value 3 = FX IN). Same order as
+ * the manual (p.33). FX In and Input exist only in Delay, Reverb and Pitch.
+ */
+const MUTE_MODES = ['Mix 0%', 'FX Out', 'Output', 'FX In', 'Input'];
+
+/**
+ * GLOBAL parameters, shared by every block (the unit's GLOBAL section), at the
+ * same place after each sub-algorithm byte: +1 Mix Level, +2 In Level, +3 Out
+ * Level, +4 Mute Mode. Seen on the unit: Filters MIX LEVEL 35 % at +1 (ROM 7),
+ * Compressor IN LEVEL 0 dB at +2 and OUT LEVEL −5 dB at +3 (ROM 203), Reverb
+ * MIX LEVEL 28 %, IN and OUT LEVEL 0 dB and MUTE MODE FX IN (ROM 1). Across
+ * all 225 ROM presets +4 reaches 3–4 only in Delay, Pitch and Reverb, the
+ * blocks that have FX In and Input. The Compressor shows no Mix, and Pan+Trem
+ * and Chorus keep +3 at 0 (the manual: Out Level is not in every block), so
+ * those are left out. The Compressor's levels are in BLOCK_PARAMS.
+ */
+function globalParams(block: Exclude<BlockId, 'gate'>): ParamDef[] {
+  const at = BLOCK_AT[block];
+  const name = BLOCKS.find((b) => b.id === block)!.label;
+  const out: ParamDef[] = [];
+  const level = (id: string, label: string, offset: number, source: string): ParamDef => ({
+    id: `${block}${id}`, block, label, offset, min: -40, max: 0, signed: true, format: (v) => `${v} dB`, source,
+  });
+  if (block !== 'compress') {
+    out.push({
+      id: `${block}Mix`, block, label: 'Mix Level', offset: at + 1, min: 0, max: 100, format: (v) => `${v} %`,
+      source: `${name}: byte after the sub-algorithm, 0–100 in every ROM preset; Filters MIX LEVEL 35 % in a photo of ROM 7`,
+    });
+    out.push(level('InLevel', 'In Level', at + 2, `${name}: GLOBAL In Level, as the Compressor's (photo of ROM 203); 0 or negative in every ROM preset`));
+    if (block !== 'pantrem' && block !== 'chorus') {
+      out.push(level('OutLevel', 'Out Level', at + 3, `${name}: GLOBAL Out Level, as the Compressor's (photo of ROM 203); 0 or negative in every ROM preset`));
+    }
+  }
+  const full = block === 'delay' || block === 'pitch' || block === 'reverb';
+  out.push({
+    id: `${block}Mute`, block, label: 'Mute Mode', offset: at + 4, min: 0, max: full ? 4 : 2,
+    format: (v) => MUTE_MODES[v] ?? String(v),
+    source: `${name}: values ${full ? '0–4' : '0–2'} in the ROM presets; ROM 1 photo: Reverb MUTE MODE FX IN = 3`,
+  });
+  return out;
+}
+
+/**
+ * Decoded parameters, per block: its own (GENERAL) first, then GLOBAL, as on
+ * the unit's Edit page. Each is checked against dumps or photos; see `source`.
+ */
+export const PARAMS: ParamDef[] = BLOCKS.flatMap((b) => [
+  ...BLOCK_PARAMS.filter((p) => p.block === b.id),
+  ...(b.id === 'gate' ? [] : globalParams(b.id)),
+]);
 
 /** Compressor ratio steps (n:1). Only step 12 = 16 is seen on the unit; the rest are a guess. */
 const COMP_RATIOS = ['1.0:1', '1.12:1', '1.25:1', '1.4:1', '1.6:1', '1.8:1', '2.0:1', '2.5:1', '3.2:1', '4.0:1', '5.6:1', '8.0:1', '16:1', '32:1', '64:1', 'Inf:1'];

@@ -8,7 +8,7 @@ import { BLOCK_LEN, codecFromInstance, joinMessages, splitSysex } from '../src/c
 import { ROM_BLOCKS, ROM_NAMES } from '../src/rom.ts';
 import { ClockMeter } from '../src/clock.ts';
 import { GCARD_NAMES } from '../src/gcard.ts';
-import { Bank, bankProgram, recallBankProgram, romIndex, cardIndex, HEADER_SIZE, ROUTED, routedBlock, ROUTING_COLS, ROUTING_ROWS, userIndex, NAME_LEN, PARAMS, Preset, RECORD_SIZE, SLOTS } from '../src/model.ts';
+import { Bank, BLOCK_AT, bankProgram, recallBankProgram, romIndex, cardIndex, HEADER_SIZE, ROUTED, routedBlock, ROUTING_COLS, ROUTING_ROWS, userIndex, NAME_LEN, PARAMS, Preset, RECORD_SIZE, SLOTS } from '../src/model.ts';
 
 let failures = 0;
 const test = (name: string, fn: () => void) => {
@@ -348,6 +348,34 @@ test('Compressor parameters read as on the unit (photo of ROM 203 Hard Compresso
   eq(p.byte(0x172), 0xd8);
   p.set(q('compThreshold'), 5);
   eq(p.get(q('compThreshold')), 0);
+});
+
+test('GLOBAL parameters: Mix, In/Out Level and Mute Mode after each sub-algorithm byte', () => {
+  const q = (id: string) => PARAMS.find((p) => p.id === id)!;
+  // One parameter per byte.
+  eq(new Set(PARAMS.map((p) => p.offset)).size, PARAMS.length);
+  // Photo of ROM 7 (FILTER - WAH-WAH): MIX LEVEL 35 %, IN LEVEL 0 dB.
+  eq(q('filtersMix').format(romPreset(7).get(q('filtersMix'))), '35 %');
+  eq(q('filtersInLevel').format(romPreset(7).get(q('filtersInLevel'))), '0 dB');
+  // Photo of ROM 1 (REVERB - ADVANCED): MIX LEVEL 28 %, IN and OUT LEVEL 0 dB, MUTE MODE FX IN.
+  const r1 = ['reverbMix', 'reverbInLevel', 'reverbOutLevel', 'reverbMute'].map((id) => q(id).format(romPreset(1).get(q(id))));
+  eq(r1, ['28 %', '0 dB', '0 dB', 'FX In']);
+  // Every block has a Mute Mode; FX In and Input (3, 4) only in Delay, Pitch and Reverb.
+  for (const b of ROUTED) eq(q(`${b.block}Mute`).offset, BLOCK_AT[b.block] + 4);
+  eq(['delay', 'pitch', 'reverb', 'filters', 'chorus'].map((b) => q(`${b}Mute`).max), [4, 4, 4, 2, 2]);
+  // No Mix on the Compressor page; no Out Level in Pan+Trem and Chorus.
+  eq([PARAMS.some((p) => p.id === 'compressMix'), PARAMS.some((p) => p.id === 'pantremOutLevel'), PARAMS.some((p) => p.id === 'chorusOutLevel')], [false, false, false]);
+  // Every ROM preset's value is in range for each block it routes.
+  for (let n = 1; n <= 225; n++) {
+    const pr = romPreset(n);
+    for (const b of ROUTED) {
+      if (!(pr.blockMask() & (1 << (b.code - ROUTED[0].code)))) continue;
+      for (const p of PARAMS.filter((x) => x.block === b.block)) {
+        const v = pr.get(p);
+        eq(v >= p.min && v <= p.max, true, `ROM ${n} ${p.id} = ${v}`);
+      }
+    }
+  }
 });
 
 test('values seen on the unit (photos) sit in their block', () => {

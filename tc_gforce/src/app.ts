@@ -1202,7 +1202,29 @@ export class App {
       this.ear(), h('div', { class: 'face' }, left, window_, fx, control, nav), this.ear());
   }
 
+  /** Value strip slots for the current block's decoded parameters (GENERAL, then GLOBAL). */
+  private paramSlots: { el: HTMLButtonElement; title: HTMLElement; value: HTMLElement; param?: ParamDef }[] = [];
+  /** Block whose parameters the strip shows when the cursor isn't on one. */
+  private stripBlockId: BlockId = 'reverb';
+
+  /** The block the value strip shows: the one under the Edit or Effects cursor, else the last one. */
+  private stripBlock(): BlockId {
+    const p = this.mode === 'edit' ? paramAt(this.cursor) : undefined;
+    const r = this.mode === 'effects' ? routedBlock(this.edit.cell(this.routeCursor.c, this.routeCursor.r)) : undefined;
+    const b = p?.block ?? r?.block;
+    if (b && PARAMS.some((q) => q.block === b)) this.stripBlockId = b;
+    return this.stripBlockId;
+  }
+
   private buildStrip(): HTMLElement {
+    const slots = Math.max(...BLOCKS.map((b) => PARAMS.filter((q) => q.block === b.id).length));
+    this.paramSlots = Array.from({ length: slots }, () => {
+      const title = h('div', { class: 'strip-title' }), value = h('div', { class: 'strip-value' });
+      const el = h('button', { class: 'strip-cell' }, title, value) as HTMLButtonElement;
+      const slot: (typeof this.paramSlots)[number] = { el, title, value };
+      el.addEventListener('click', () => slot.param && this.jumpTo(slot.param.offset));
+      return slot;
+    });
     const cell = (id: string, label: string, onClick?: () => void, title?: string) => {
       const v = h('div', { class: 'strip-value' });
       const c = h('button', { class: 'strip-cell', title: title ?? label }, h('div', { class: 'strip-title', text: label }), v);
@@ -1218,7 +1240,7 @@ export class App {
     this.strip.num = head.querySelector('.strip-num')!;
     return h('section', { class: 'unit strip' }, this.ear(), h('div', { class: 'face' },
       head,
-      ...PARAMS.map((p) => cell(p.id, `${BLOCKS.find((b) => b.id === p.block)!.label} · ${p.label}`, () => this.jumpTo(p.offset), p.source)),
+      ...this.paramSlots.map((s) => s.el),
       cell('byte', 'Cursor byte', () => this.pressEffects(), 'The byte under the PARAMETER cursor'),
       cell('stored', 'Stored value', undefined, 'The same byte in the stored preset'),
       cell('state', 'State')), this.ear());
@@ -1665,10 +1687,19 @@ export class App {
     const used = this.bank.used(this.current) || this.editDirty;
     this.nameInput.disabled = !used;
     this.nameInput.placeholder = used ? '' : 'empty slot';
-    for (const p of PARAMS) {
-      this.strip[p.id].textContent = used ? p.format(this.edit.get(p)) : '—';
-      this.strip[p.id].parentElement!.classList.toggle('sel', this.mode === 'edit' && this.cursor === p.offset);
-    }
+    const block = this.stripBlock();
+    const label = BLOCKS.find((b) => b.id === block)!.label;
+    const params = PARAMS.filter((q) => q.block === block);
+    this.paramSlots.forEach((slot, k) => {
+      const p = params[k];
+      slot.param = p;
+      slot.el.style.visibility = p ? '' : 'hidden';
+      if (!p) return;
+      slot.title.textContent = `${label} · ${p.label}`;
+      slot.el.title = p.source;
+      slot.value.textContent = used ? p.format(this.edit.get(p)) : '—';
+      slot.el.classList.toggle('sel', this.mode === 'edit' && this.cursor === p.offset);
+    });
     const v = this.edit.byte(this.cursor), s = this.bank.preset(this.current).byte(this.cursor);
     this.strip.byte.textContent = this.mode === 'effects' ? this.cellText() : `${this.cursor} · ${hex2(v)}h · ${v}`;
     this.strip.stored.textContent = `${hex2(s)}h · ${s}`;

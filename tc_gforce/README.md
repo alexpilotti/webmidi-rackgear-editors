@@ -124,7 +124,7 @@ A faulty transfer can leave the User bank empty, so keep the backup.
 | RECALL | as on the unit (manual p.17): PARAMETER moves the cursor between SELECT, BANK and PRESET (its label is inverted); VALUE changes that field (BANK switches ROM / USER / CARD 1–6, PRESET previews); ENTER recalls on the G-Force (a User preset is also loaded into the edit buffer). The SELECT grid shows ALL and the blocks the preset uses, at the unit's fixed places (CPR FIL / PAN PIT DLY / DRV CHO REV): from the data for User presets, from the ROM dumps for ROM presets (all 225), blank for card presets. SELECT stays on ALL: partial recall is on the unit only |
 | STORE | VALUE chooses the target slot, ENTER stores the edit buffer there |
 | EFFECTS | the Effects display, drawn like the unit's: "Eff." with the MIX / EDIT / ROUTING / LAYOUT tabs, the In and OUT bars and the edited User preset's block diagram (CPR, FIL, PAN, PIT, DLY, DRV, CHO, REV boxes, as named on the unit, wired through the 8 × 4 routing grid). ◄ ► switch EDIT and ROUTING (MIX and LAYOUT are on the unit only). On EDIT, PARAMETER moves the cursor from block to block; on ROUTING, over every cell. The value strip names the cell, its block and its sub-algorithm. ENTER on a block opens its data at the sub-algorithm byte: there PARAMETER moves through the bytes, VALUE changes them, and EXIT goes back to the diagram. The routing itself is read-only: change it on the unit |
-| GATE … REVERB | jump to that block's decoded parameters (COMPRESS: THRESHOLD, RATIO, KNEE MODE, RELEASE, IN LEVEL, OUT LEVEL; REVERB: DECAY TIME). Other blocks are not decoded yet. |
+| GATE … REVERB | step through that block's decoded parameters: its own first (COMPRESS: THRESHOLD, RATIO, KNEE MODE, RELEASE, IN LEVEL, OUT LEVEL; REVERB: DECAY TIME), then GLOBAL for every effect block (MIX LEVEL, IN LEVEL, OUT LEVEL where the block has them, MUTE MODE). GATE is not decoded yet. |
 | I/O SETUP | MIDI, CONTROL and AUDIO pages (◄ ►), as on the unit. The MIDI page shows and edits the editor's settings (Basic channel, Program change, Bank selection, Bank size, SysEx ID), which must match the unit's; Mapping mode must be External on the unit. CONTROL and AUDIO are listed but set on the unit only |
 | UTILITY | CONFIG and BILLBOARD pages (◄ ►), as on the unit. In CONFIG, USER BANK TO MIDI (the editor receives) and MIDI TO USER BANK (the editor sends) run with ENTER; the other items are on the unit only. Tuner MIDI Out must be Off on the unit for dumps (manual p.29) |
 | ◄ ► | switch the pages of Effects (EDIT, ROUTING), I/O Setup and Utility; elsewhere they step like PARAMETER |
@@ -132,8 +132,8 @@ A faulty transfer can leave the User bank empty, so keep the backup.
 | TEMPO | Tempo page, after the unit's (manual p.31): VALUE dials 20–300 BPM, which is sent to the G-Force; the TEMPO source channel is set here too. The key's LED blinks at the tempo |
 | BYPASS, TUNER, MOD | on the unit only |
 
-The value strip shows the decoded parameters, the byte under the cursor and the
-stored value. The name field renames the edit buffer; STORE writes it. In the
+The value strip shows the decoded parameters of the block under the cursor (the
+last block chosen otherwise), the byte under the cursor and the stored value. The name field renames the edit buffer; STORE writes it. In the
 PRESET DATA grid, click a byte to put the cursor on it. Orange bytes differ
 from the stored preset. In the preset list, the filled row is the preset
 recalled (or being edited); an outlined row is the one the Recall page
@@ -199,6 +199,17 @@ simulated unit, not against the G-Force receiving data.
    the other steps follow the usual TC series and show with a `?`. The
    editing ranges (Threshold, In and Out Level −40 … 0 dB, Release 0 … 100
    dB/s) are not in the manual.
+13. **GLOBAL parameters**: every effect block keeps Mix Level, In Level, Out
+   Level and Mute Mode right after its sub-algorithm byte. Photos confirm
+   Filters Mix (ROM 7), Compressor In and Out Level (ROM 203) and all four
+   in the Reverb (ROM 1); for the
+   other blocks the layout is inferred from all 225 ROM presets. Mute Mode
+   values 3–4 appear only in Delay, Pitch and Reverb, as the manual says;
+   a photo of ROM 1's Reverb confirms 3 = FX IN and the order of the unit's
+   list (0 Mix 0%, 1 FX Out, 2 Output, 3 FX In, 4 Input). The editor leaves
+   out Mix for the Compressor (its page has none) and Out Level for Pan+Trem
+   and Chorus (always 0). The level ranges (−40 … 0 dB) are not in the
+   manual.
 
 Bytes the editor doesn't understand are kept exactly as received. A received
 bank that is sent back unedited is byte-identical.

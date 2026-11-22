@@ -97,6 +97,11 @@ multi-block presets later.
 
 ## Every block
 
+The unit's Edit page shows these under **GLOBAL**, after the block's own
+**GENERAL** parameters (photos of ROM 7 and 203). In the record they sit at
+the same place in every block, right after its sub-algorithm byte (+5 is 0
+in every ROM preset). The editor shows them for all eight blocks.
+
 Common to the eight effect blocks (manual p.33): **Mix**, **In Level**, **Out
 Level** (not in every sub-algorithm), and **Mute mode** as the last
 parameter: Mix 0% · FX Out · Output · FX In · Input (FX In and Input only in
@@ -106,10 +111,10 @@ the routing grid (4 × 8). The Tempo parameters take Ignored or a note value
 
 | Parameter | Range / values | LCD name | Offset | Evidence |
 |---|---|---|---|---|
-| Mix | % ? | MIX LEVEL | sub-algorithm byte + 1 (Filters `0x17B`) | ROM 7 photo: 35 %. *Guess* for the other blocks: the byte after each sub-algorithm byte reads 0–100 in all of ROM 1–225 |
-| In Level | dB ? | | | |
-| Out Level | dB ? | | | |
-| Mute mode | Mix 0% · FX Out · Output · FX In · Input | | | |
+| Mix | 0–100 % | MIX LEVEL | sub-algorithm byte + 1 | ROM 7 photo: Filters 35 % at `0x17B`; ROM 1 photo: Reverb 28 % at `0x247`. 0–100 in every block of every ROM preset. Not on the Compressor page |
+| In Level | dB, signed (ROM −34 … 0) | IN LEVEL | sub-algorithm byte + 2 | ROM 203 photo: Compressor 0 dB at `0x168`; ROM 7 photo: Filters 0 dB |
+| Out Level | dB, signed (ROM −22 … 0) | OUT LEVEL | sub-algorithm byte + 3 | ROM 203 photo: Compressor −5 dB at `0x169`. Always 0 in Pan+Trem and Chorus, left out there |
+| Mute mode | 0 Mix 0% · 1 FX Out · 2 Output · 3 FX In · 4 Input | MUTE MODE | sub-algorithm byte + 4 | ROM 1 photo: Reverb FX IN = 3; its list shows the five modes in this order. 3–4 appear only in Delay, Pitch and Reverb |
 | Bypass | on / off | | | |
 | Routing position | column 1–8, row 1–4 | | `0x28 + 4·column + row` holds the block ID | ROM 1–225 vs the preset list, photos |
 
@@ -277,7 +282,7 @@ Sub-algorithms: Advanced (photo: `REVERB - ADVANCED`, first group
 | Color factor | ±50 | Advanced | | | |
 | Predelay | ±50 | both | | | |
 | Decay level | ±50 | Advanced | | | |
-| Diffuse | ±25 | Advanced | | | |
+| Diffuse | ±25 | Advanced | DIFFUSE (shown as ◄0►) | | ROM 1 photo: 0; last GENERAL parameter before GLOBAL |
 | Decay start | ±50 | Advanced | | | |
 | Type | Room · Club · Hall · Church · Cathedral · Grand Hall · Fast Decay · Slow Decay · Plate · Spring | Simple | | | |
 | Color | Wool … Glass · Extreme | Simple | | | |

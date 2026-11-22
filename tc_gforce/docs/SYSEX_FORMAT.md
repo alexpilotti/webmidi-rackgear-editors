@@ -110,6 +110,14 @@ the unit, with its box name: 4 CPR, 5 FIL, 6 PAN, 7 PIT, 8 DLY, 9 DRV, 10 CHO,
 | `0x22E` | 24 | **Chorus/Flanger**; `0x22E` = sub-algorithm: 1 in the straight Chorus presets (186, 187, 190 Vibrato), 3 in the Flanger presets (188, 189, 44, the flanging presets). *Guess:* manual order (0 Classic Chorus, 1 Advanced Chorus, 2 Classic Flanger, 3 Advanced Flanger) | preset list |
 | `0x246` | 32 | **Reverb**; `0x246` = sub-algorithm, 1 = Advanced (photo of Mono Reverb). 0 only in the six single-block Reverbs 180–185 where the Reverb is routed, *guess:* Simple. `0x253` = DECAY TIME | |
 
+**Block start.** Each block's data opens with the same six bytes (the unit's
+GLOBAL section): +0 sub-algorithm, +1 Mix Level, +2 In Level, +3 Out Level
+(signed dB; always 0 in Pan+Trem and Chorus), +4 Mute Mode (3–4 only in
+Delay, Pitch and Reverb), +5 = 0. Photos confirm +1 (Filters, Reverb), +2
+and +3 (Compressor, Reverb) and +4 (Reverb FX IN = 3, with the unit's list
+of the five modes: 0 Mix 0%, 1 FX Out, 2 Output, 3 FX In, 4 Input); the
+rest fit all 225 ROM presets.
+
 **Routing grid.** Each cell holds a block ID, 0 for an empty cell, 1 for the
 pipeline icon:
 
