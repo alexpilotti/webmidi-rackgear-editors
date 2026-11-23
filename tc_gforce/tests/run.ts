@@ -392,16 +392,23 @@ test('G-Card names: banks of 100, 100 and 45 from its manual', () => {
   for (const b of GCARD_NAMES) for (const n of b) if (!/^[\x20-\x7e]+$/.test(n)) throw new Error(`odd name ${n}`);
 });
 
-const card1 = romDump('gforce-g-card-1.syx');
+const cards = [romDump('gforce-g-card-1.syx'), romDump('gforce-g-card-2.syx'), romDump('gforce-g-card-3.syx')];
+const card1 = cards[0];
+/** The record of G-Card bank b preset n. */
+const cardPreset = (b: number, n: number) => cards[b - 1].preset(n - 1);
 
-test('G-Card bank 1 dump: names as the unit stores them, blocks for the Recall grid', () => {
-  for (let i = 0; i < 100; i++) {
-    eq(card1.used(i), true);
-    eq(card1.preset(i).name.trimEnd(), GCARD_NAMES[0][i], `card 1-${i + 1}`);
-    eq(GCARD_BLOCKS[0][i], card1.preset(i).blockMask(), `card 1-${i + 1}`);
-  }
+test('G-Card dumps: names as the unit stores them, blocks for the Recall grid', () => {
+  cards.forEach((bank, b) => {
+    const count = GCARD_NAMES[b].length;
+    for (let i = 0; i < 100; i++) eq(bank.used(i), i < count, `card ${b + 1}-${i + 1}`);
+    for (let i = 0; i < count; i++) {
+      eq(bank.preset(i).name.trimEnd(), GCARD_NAMES[b][i], `card ${b + 1}-${i + 1}`);
+      eq(GCARD_BLOCKS[b][i], bank.preset(i).blockMask(), `card ${b + 1}-${i + 1}`);
+    }
+  });
   eq(GCARD_NAMES[0][4], 'Rhythmic'); // "Rhyhmic" in the card manual
   eq(GCARD_NAMES[0][14], 'Subtle Jazz RevDelay'); // "Subtle Jazz Reverb Delay": over 20 characters
+  eq(GCARD_NAMES[1][33], 'Corinnes Shimmer'); // "Corrines Shimmer" in the card manual
 });
 
 test('G-Card bank 1 links match the card manual\'s descriptions', () => {
@@ -428,14 +435,45 @@ test('G-Card bank 1 links match the card manual\'s descriptions', () => {
   eq(sub(36, 'pitch'), 'INTELLIGENT?'); // "E Dorian"
 });
 
-test('G-Card bank 1: every value in range for the blocks each preset routes', () => {
-  for (let i = 0; i < 100; i++) {
-    const pr = card1.preset(i);
-    for (const b of ROUTED) {
-      if (!(pr.blockMask() & (1 << (b.code - ROUTED[0].code)))) continue;
-      for (const p of PARAMS.filter((x) => x.block === b.block)) {
-        const v = pr.get(p);
-        eq(v >= p.min && v <= p.max, true, `card 1-${i + 1} ${p.id} = ${v}`);
+test('G-Card banks 2 and 3: links named in the card manual\'s descriptions', () => {
+  const ids = (b: number, n: number, src: number) => Array.from({ length: 20 }, (_, k) => {
+    const p = cardPreset(b, n), at = 0x76 + 10 * k;
+    return p.byte(at + 5) === src ? (p.byte(at + 8) << 8) | p.byte(at + 9) : 0;
+  }).filter((x) => x);
+  const ENV = 10, EXT1 = 1, LFO1 = 13;
+  for (const n of [6, 10]) eq(ids(3, n, ENV), [2300], `card 3-${n}`); // "Env > Wah Wah Filter Freq"
+  eq(ids(3, 11, EXT1), [2500]); // "Pedal > Filter Phaser Speed"
+  eq(ids(3, 13, EXT1), [2000]); // "Pedal > Fil Phaser Mix"
+  eq(ids(2, 18, EXT1), [2203]); // "Ext 1 > Fil Res hi cut freq"
+  eq(ids(3, 18, ENV), [5002]); // "Env > Stereo Delay Out Level"
+  eq(ids(3, 12, LFO1).includes(5416), true); // "LFO1 > Delay 1 Pan"
+  eq(ids(3, 16, LFO1), [2414]); // "LFO1 assigned to Formant Sweep"
+  eq(ids(2, 10, EXT1), [5001, 4154]); // "Ext 1 > Pit 2Voice Lvl 1, Dly One in Level"
+  eq(ids(3, 32, EXT1), [4000]); // "Ext 1 > Pit 2Voice Mix Level"
+  eq(ids(2, 82, EXT1), [8001]); // "Ext 1 > Rev Adv In Level"
+  // Presets marked X with an Ext 1 link; the exceptions are 2-98, 2-99, 3-8 and 3-10.
+  const pedal: [number, number[]][] = [
+    [2, [8, 9, 10, 11, 12, 13, 15, 16, 18, 24, 35, 40, 50, 51, 52, 53, 57, 64, 66, 67, 82, 85, 89, 90, 93]],
+    [3, [11]],
+  ];
+  for (const [b, ns] of pedal) for (const n of ns) eq(ids(b, n, EXT1).length > 0, true, `card ${b}-${n}`);
+  for (const [b, n] of [[2, 98], [2, 99], [3, 8], [3, 10]]) eq(ids(b, n, EXT1).length, 0, `card ${b}-${n}`);
+});
+
+test('G-Card: every value in range for the blocks each preset routes, block thousands hold', () => {
+  for (let b = 1; b <= 3; b++) {
+    for (let n = 1; n <= GCARD_NAMES[b - 1].length; n++) {
+      const pr = cardPreset(b, n);
+      for (let k = 0; k < 20; k++) {
+        const at = 0x76 + 10 * k, id = (pr.byte(at + 8) << 8) | pr.byte(at + 9), blk = pr.byte(at + 6);
+        if (id && blk) eq(Math.floor(id / 1000), blk - 3, `card ${b}-${n}`);
+      }
+      for (const r of ROUTED) {
+        if (!(pr.blockMask() & (1 << (r.code - ROUTED[0].code)))) continue;
+        for (const p of PARAMS.filter((x) => x.block === r.block)) {
+          const v = pr.get(p);
+          eq(v >= p.min && v <= p.max, true, `card ${b}-${n} ${p.id} = ${v}`);
+        }
       }
     }
   }

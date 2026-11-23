@@ -17,6 +17,8 @@ worked out from dumps of a real unit (`samples/`), sent with
 | `gforce-rom-101-200.syx` | ROM 101–200 copied unedited to User 1–100. 16 names differ from the manual, 15 in spelling only; ROM 196 is "Delay Tap Tempo" on the unit and "Straight Delay" in the manual |
 | `gforce-rom-201-225.syx` | ROM 201–225 copied unedited to User 1–25. 3 names differ in spelling; 223–224 are "Slow Noise Gate" and "Fast Noise Gate" on the unit, both "Noise Gate Slow" in the manual |
 | `gforce-g-card-1.syx` | TC G-Card bank 1 (100 presets) copied unedited to User 1–100. 19 names differ from the card manual: its typos ("Rhyhmic", "Psycheledic"), names cut to 20 characters ("Subtle Jazz RevDelay", "Pedal Maj-Min"), case and punctuation |
+| `gforce-g-card-2.syx` | G-Card bank 2 (100 presets) copied unedited to User 1–100. 5 names differ from the card manual ("Corrines" is "Corinnes" on the card, the rest case and punctuation) |
+| `gforce-g-card-3.syx` | G-Card bank 3 (45 presets) copied unedited to User 1–45. All names as in the card manual |
 
 A first capture with an empty User bank sent only the header message, with a
 block count of `02` (its data blocks were not recorded).
@@ -139,7 +141,7 @@ Noise Gate never appears in the grid.
 | 0, 1, 2 | Link Low / Mid / High input, 0–100 (mostly `0 50 100`, a straight line) | manual p.25 link page |
 | 3 | Slope, signed (`FC` = −4 … `15` = 21) | 0 on straight links |
 | 4 | Glide time (mostly 10) | |
-| 5 | source: **1–4 = Ext 1–4** (1 is the pedal: 51 of the 53 presets marked X use it; 174 Jam with Loop, "Ext. 1 controls the looping, Ext. 2 controls the adding", uses 1 and 2; 173 links 1, 2, 3, 4 to four Delay taps), **10 = ENV** (Dyn Delays, Touchwahs; 121 "Envelope controlled crossfade between Reverb and Delay" links 10 to both Mixes, 5000 and 8000; 165 and 167 speed a panner up or down with the signal), **13, 14 = LFO 1, 15, 16 = LFO 2**, likely each LFO's two outputs (164 War of the Worlds moves its two pitch voices with 13 and 15; 171 Who's Next's autowah uses 15). **11 = ADSR 1** (G-Card 1-5 Rhythmic: "ASDR1 assigned to control Pitch" links 11 to Pitch). *Guess:* 5–8 Ext 5–8 (5 appears on the G-Card); 12 ADSR 2; 9 the Pitch detector | pedal column, descriptions |
+| 5 | source: **1–4 = Ext 1–4** (1 is the pedal: 51 of the 53 presets marked X use it; 174 Jam with Loop, "Ext. 1 controls the looping, Ext. 2 controls the adding", uses 1 and 2; 173 links 1, 2, 3, 4 to four Delay taps), **10 = ENV** (the G-Card manual's "Env >" presets; Dyn Delays, Touchwahs; 121 "Envelope controlled crossfade between Reverb and Delay" links 10 to both Mixes, 5000 and 8000; 165 and 167 speed a panner up or down with the signal), **13, 14 = LFO 1, 15, 16 = LFO 2**, likely each LFO's two outputs ("LFO1 >" in the G-Card manual is 13; 164 War of the Worlds moves its two pitch voices with 13 and 15; 171 Who's Next's autowah uses 15). **11 = ADSR 1** (G-Card 1-5 Rhythmic: "ASDR1 assigned to control Pitch" links 11 to Pitch). *Guess:* 5–8 Ext 5–8 (5 appears on the G-Card); 12 ADSR 2; 9 the Pitch detector | pedal column, descriptions |
 | 6 | target block, as a routing grid code (0 = none) | equals the ID's thousands + 3 |
 | 7 | 0 in all 225 | |
 | 8–9 | **target parameter ID**, 16-bit big-endian; 0 = no target | see below |
@@ -168,6 +170,34 @@ Pan+Trem 1 3200/3202, 2 3300, 3 3400; Chorus 1 7200/7202, 2 7300/7302, 3
 (the shifters) and 42xx for 3 (Detune). Exceptions to the pedal rule: 84
 Crunch Phasecomp and 111 Wes M Jazz Lead are marked X in the manual but have
 no Ext 1 link with a target. Many links name a block but have ID 0.
+
+**Parameter IDs named in the manuals.** The G-Card manual's descriptions
+often say what the pedal, the envelope or an LFO controls, and those
+presets link exactly one matching ID:
+
+| ID | Parameter | Description (G-Card bank-preset) |
+|---|---|---|
+| 0915 | In section: In Level | "Ext1 > In level" (1-75) |
+| 1001 | Compressor In Level | "Ext1 > Cpr Adv. In level" (1-96) |
+| 2000 | Filters Mix | "Pedal > Fil Phaser Mix" (3-13) |
+| 2203 | Resonance hi cut frequency | "Ext 1 > Fil Res hi cut freq" (2-18) |
+| 2300 | Wah-Wah frequency | "Env > Wah Wah Filter Freq" (3-6, 3-10, 3-21) |
+| 2413, 2414, 2415 | Formant Age/Sex, Sweep, Resonance | "Formant Resonance, Sweep & Age/Sex" (3-1); "Formant Age/Sex, Sweep" (1-71, 2-66); "Env > Formant Sweep" (2-97, 3-40) |
+| 2500 | Phaser Speed | "Pedal > Filter Phaser Speed" (3-11, 3-14) |
+| 3400 | Surround Panner Speed | "Pedal > Surround Pan speed" (1-56) |
+| 4000 | Pitch Mix | "Ext 1 > Pit 2Voice Mix Level" (3-32), "Mix level of Pitch" (1-6) |
+| 4150, 4151 | Pitch Voice 1, Voice 2 | "Ext1 > Pitch Voice1 & Voice2" (1-7) |
+| 4154 | Pitch 2 Voice Level 1 | "Ext 1 > Pit 2Voice Lvl 1" (2-10) |
+| 5000 | Delay Mix | "Ext1 > Delay Mix" (1-43), "Ext 1 > Dly Quad Mix Lvl" (2-16) |
+| 5001 | Delay In Level | "Ext1 > Delay In level" (1-79, 80, 84) |
+| 5002 | Delay Out Level | "Env > Stereo Delay Out Level" (3-18); the owner's manual's ducking example |
+| 5416 | Delay 1 Pan (Quad/One-tap) | "LFO1 > Delay 1 Pan" (3-12) |
+| 7000 | Chorus/Flanger Mix | "Ext 1 > Cho Fl mix lvl" (2-24) |
+| 7402 | Advanced Flanger depth | "Env > flanger depth" (3-43) |
+| 8001 | Reverb In Level | "Ext 1 > Rev Adv In Level" (2-82) |
+
+"Env" is source 10 and "LFO1" source 13 in these presets. Presets marked X
+in the card manual all have an Ext 1 link, except 2-98, 2-99, 3-8 and 3-10.
 
 **Values.** Most parameters are single bytes, signed where needed (`FE` =
 −2, `CE` = −50, as in pan pairs `32 CE` = +50 / −50). Some are 16-bit
