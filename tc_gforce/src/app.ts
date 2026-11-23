@@ -10,7 +10,7 @@ import {
 } from './model.ts';
 import { Billboard, GraphicLcd, h, Knob, NumberField, PanelKey } from './ui/components.ts';
 import { ROM_BLOCKS, ROM_NAMES } from './rom.ts';
-import { GCARD_NAMES } from './gcard.ts';
+import { GCARD_BLOCKS, GCARD_NAMES } from './gcard.ts';
 import { infoPage, LCD_H, LCD_W, menuPage, messageBox, paramPage, presetPage, routingPage, selectGrid, textBox, type GridCell, type ListRow } from './ui/screens.ts';
 
 /** Panel modes (owner's manual: Recall, Store, Effects/Edit, Utility). */
@@ -1248,11 +1248,13 @@ export class App {
 
   /**
    * SELECT grid labels for preset t of bank b: the blocks it routes, from the
-   * User preset's data or, for ROM presets, from ROM_BLOCKS. Blank when unknown.
+   * User preset's data, ROM_BLOCKS for ROM presets, or GCARD_BLOCKS for the
+   * dumped G-Card banks when G-CARD is on. Blank when unknown.
    */
   private blockLabels(b: number, t: number): string[] {
     const mask = b === USER ? (this.bank.used(t) ? (t === this.current ? this.edit : this.bank.preset(t)).blockMask() : 0)
-      : b === ROM ? ROM_BLOCKS[t] ?? 0 : 0;
+      : b === ROM ? ROM_BLOCKS[t] ?? 0
+        : gcard ? GCARD_BLOCKS[b - 2]?.[t] ?? 0 : 0;
     return ROUTED.map((r, k) => (mask & (1 << k) ? r.short : ''));
   }
 
@@ -1723,7 +1725,7 @@ export class App {
       : b === ROM
         ? 'Factory presets 1–225 (names from the manual) · click to recall on the unit · read-only: the dump only carries the User bank'
         : gcard
-          ? `G-Card bank ${b - 1}, presets 1–${count} (names from the G-Card manual) · click to recall on the unit · read-only card`
+          ? `G-Card bank ${b - 1}, presets 1–${count} (names ${GCARD_BLOCKS[b - 2] ? 'and blocks from a dump of the card' : 'from the G-Card manual'}) · click to recall on the unit · read-only card`
           : `Card bank ${b - 1}, presets 1–${count} · click to recall on the unit · the editor can't read card contents · G-CARD shows the TC G-Card's names`;
     this.btns.clear.hidden = b !== USER;
     this.btns.clear.textContent = `CLEAR USER ${this.current + 1}`;

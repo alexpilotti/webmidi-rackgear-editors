@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { BLOCK_LEN, codecFromInstance, joinMessages, splitSysex } from '../src/codec.ts';
 import { ROM_BLOCKS, ROM_NAMES } from '../src/rom.ts';
 import { ClockMeter } from '../src/clock.ts';
-import { GCARD_NAMES } from '../src/gcard.ts';
+import { GCARD_BLOCKS, GCARD_NAMES } from '../src/gcard.ts';
 import { Bank, BLOCK_AT, bankProgram, recallBankProgram, romIndex, cardIndex, HEADER_SIZE, ROUTED, routedBlock, ROUTING_COLS, ROUTING_ROWS, userIndex, NAME_LEN, PARAMS, Preset, RECORD_SIZE, SLOTS } from '../src/model.ts';
 
 let failures = 0;
@@ -390,6 +390,55 @@ test('G-Card names: banks of 100, 100 and 45 from its manual', () => {
   eq(GCARD_NAMES.map((b) => b.length), [100, 100, 45]);
   eq([GCARD_NAMES[0][0], GCARD_NAMES[0][1], GCARD_NAMES[1][99], GCARD_NAMES[2][44]], ['Run Like Hell', 'Tremendous Delay', 'Simple Blues Delay', 'Panned Pitch']);
   for (const b of GCARD_NAMES) for (const n of b) if (!/^[\x20-\x7e]+$/.test(n)) throw new Error(`odd name ${n}`);
+});
+
+const card1 = romDump('gforce-g-card-1.syx');
+
+test('G-Card bank 1 dump: names as the unit stores them, blocks for the Recall grid', () => {
+  for (let i = 0; i < 100; i++) {
+    eq(card1.used(i), true);
+    eq(card1.preset(i).name.trimEnd(), GCARD_NAMES[0][i], `card 1-${i + 1}`);
+    eq(GCARD_BLOCKS[0][i], card1.preset(i).blockMask(), `card 1-${i + 1}`);
+  }
+  eq(GCARD_NAMES[0][4], 'Rhythmic'); // "Rhyhmic" in the card manual
+  eq(GCARD_NAMES[0][14], 'Subtle Jazz RevDelay'); // "Subtle Jazz Reverb Delay": over 20 characters
+});
+
+test('G-Card bank 1 links match the card manual\'s descriptions', () => {
+  const ids = (n: number, src: number) => Array.from({ length: 20 }, (_, k) => {
+    const p = card1.preset(n - 1), at = 0x76 + 10 * k;
+    return p.byte(at + 5) === src ? (p.byte(at + 8) << 8) | p.byte(at + 9) : 0;
+  }).filter((x) => x);
+  eq(ids(43, 1), [5000]); // "Ext1 > Delay Mix"
+  eq(ids(6, 1), [4000]); // "Ext 1 controls Mix level of Pitch"
+  for (const n of [79, 80, 84]) eq(ids(n, 1), [5001], `card 1-${n}`); // "Ext1 > Delay In level"
+  eq(ids(96, 1), [1001]); // "Ext1 > Cpr Adv. In level": 1xxx is the Compressor
+  eq(ids(75, 1), [5408, 915]); // "Ext1 > In level, Dly Feedback1": 0xxx is the In section
+  eq(ids(5, 11), [4158]); // "ASDR1 assigned to control Pitch": source 11 is ADSR 1
+  eq(ids(7, 1), [4150, 4151]); // "Ext1 > Pitch Voice1 & Voice2"
+  // Every preset marked X (pedal) in the card manual has an Ext 1 link with a target.
+  const pedal = [3, 4, 6, 7, 14, 20, 23, 24, 25, 26, 28, 32, 33, 35, 39, 40, 41, 42, 43, 45, 46, 48, 49, 55, 56, 58, 59,
+    60, 61, 62, 63, 64, 65, 70, 71, 75, 79, 80, 84, 96];
+  for (const n of pedal) eq(ids(n, 1).length > 0, true, `card 1-${n}`);
+  // Sub-algorithms named in the descriptions.
+  const sub = (n: number, block: string) => card1.preset(n - 1).subAlgo(ROUTED.find((b) => b.block === block)!);
+  eq(sub(59, 'delay'), 'QUAD-TAP?'); // "Quad Tap Delay"
+  eq(sub(18, 'delay'), 'DUAL?'); // "Tempo controls Dual Delay"
+  eq(sub(28, 'filters'), 'WAH-WAH'); // "Distorted Wah Wah"
+  eq(sub(36, 'pitch'), 'INTELLIGENT?'); // "E Dorian"
+});
+
+test('G-Card bank 1: every value in range for the blocks each preset routes', () => {
+  for (let i = 0; i < 100; i++) {
+    const pr = card1.preset(i);
+    for (const b of ROUTED) {
+      if (!(pr.blockMask() & (1 << (b.code - ROUTED[0].code)))) continue;
+      for (const p of PARAMS.filter((x) => x.block === b.block)) {
+        const v = pr.get(p);
+        eq(v >= p.min && v <= p.max, true, `card 1-${i + 1} ${p.id} = ${v}`);
+      }
+    }
+  }
 });
 
 console.log('clock');

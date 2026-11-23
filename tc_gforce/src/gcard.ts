@@ -3,35 +3,37 @@
 
 // Preset names of the TC Electronic G-Card (245 presets in card banks 1–3),
 // from the preset table of its manual (docs/388-tcelectronicGForceBrochure.pdf).
-// Bank b preset n is GCARD_NAMES[b - 1][n - 1].
+// Bank 1 uses the names the unit stores (a dump of card bank 1): 19 differ from
+// the manual, by its typos ("Rhyhmic"), the 20-character limit ("Subtle Jazz
+// RevDelay") or case and punctuation. Bank b preset n is GCARD_NAMES[b - 1][n - 1].
 
 export const GCARD_NAMES: readonly (readonly string[])[] = [
-  // Card bank 1
+  // Card bank 1, spelled as the unit stores them (docs/samples/gforce-g-card-1.syx)
   [
     "Run Like Hell", "Tremendous Delay", "Drunk at Sea", "VibroVerber",
-    "Rhyhmic", "Wah Octadelay", "Harmonizer Pedal", "Heavens Arpeggiator",
+    "Rhythmic", "Wah Octadelay", "Harmonizer Pedal", "Heavens Arpeggiator",
     "Hells Arpeggiator", "Aural Vertigo", "Revvy Chorus Delay", "Basie Envelopes",
-    "Revwapanic", "High Life Delay", "Subtle Jazz Reverb Delay", "Transwah Organ",
+    "Revwapanic", "High Life Delay", "Subtle Jazz RevDelay", "Trans Wah Organ",
     "Philly Wah", "Rhythm Spread", "PJs Autowah", "Pedal Martians",
     "Instant Pumpkin", "Blues Drive Delay", "VariSpeedFlangeOrgan", "Mutron Bass Pedal",
-    "PhaserBass VariSpeed", "Power Sweeper", "Funky Mosquito Buzz", "Jimi's Cry Baby",
-    "Woo Power", "Fuzy's ARPsynthLead1", "VintageARPsynthQuack", "Psycheledic Sweeper 1",
-    "Psychedelic Sweeper 2", "Real Auto Wah", "Flanged Cry Baby", "Guitar Trio",
-    "Funk Rick O Shea", "Bionic Seagulls", "FazeTrem PedalShadow", "Franks PanWah",
-    "Swell Strings Pedal", "Sweltering Pedal", "Tele Something Good", "Tap Swell In",
-    "Pedal Major to Minor", "Syntharpeggiator", "PanningOctaveChorus", "Thin Surfer Dude",
+    "PhaserBass VariSpeed", "Power Sweeper", "Funky Mosquito Buzz", "Jimi-s Cry Baby",
+    "Woo Power", "Fuzy-s ARPsynthLead1", "VintageARPsynthQuack", "Psychedelic Sweeper1",
+    "Psychedelic Sweeper2", "Real Auto Wah", "Flanged Cry Baby", "Guitar Trio",
+    "Funk Rick O Shea", "Bionic Seagulls", "FazeTrem PedalShadow", "Franks Panwah",
+    "Swell Strings Pedal", "Sweltering Pedal", "Tele Something Good", "Tap Swell-in",
+    "Pedal Maj-Min", "Syntharpeggiator", "PanningOctaveChorus", "Thin Surfer Dude",
     "Whales-Tap Delay", "Piggy", "Vital Idol", "Ambient Stutter",
-    "Wash", "Eno/Mono", "Spider Talk", "Visionary",
+    "Wash", "Eno-Mono", "Spider Talk", "Visionary",
     "Bridge of Size", "Jezebel in Hell", "Spazz Monkey", "Miked JC120 Lator",
-    "Miked JC120 Lator 2", "Miked Ampulator", "Leslie Pedal", "Pedal Board",
-    "Cyclopanner", "Ambient Bloom 3", "Ambient Bloom 4", "Wonderful Life",
+    "Miked JC120 Lator2", "Miked Ampulator 1", "Leslie Pedal", "Pedal Board 1",
+    "CycloPanner", "Ambient Bloom 3", "Ambient Bloom 4", "Wonderful Life",
     "Talk To Me Fuzz", "FuzzFadeIn", "FuzzWahPedal", "Fuzz Funn",
-    "Ghost Heart", "Odd Ball", "What RU Laughing At", "Amniotica 1",
-    "Amniotica 2", "Sarggasso Trenchcoat", "SnapSynapse", "ChorVyrbe",
+    "Ghost Heart", "Odd Ball", "What RU Laughing At", "Amniotica  1",
+    "Amniotica  2", "Sarggasso Trenchcoat", "SnapSynapse", "ChorVyrbe",
     "The Big C", "WahEkoWahDelay", "Secret Missionary", "TheOnlyGoodInYOUisME",
     "Martino 1", "Martino 2", "Martino 3", "SciFi Soundtrack",
-    "Nylon 4ths", "Nylon 5ths", "Engulfed", "Sembello Blue EZ",
-    "Stringy 5ths", "Backwards in Time", "SembelloPulse", "Double Mint",
+    "Nylon 4ths", "Nylon 5ths", "EnGulfed", "Sembello Blue EZ",
+    "Stringy 5ths", "Backwards In Time", "SembelloPulse", "Double Mint",
     "Lots of Overtones", "Medium Phuz + Mutron", "Sweepin Repercussion", "Swirling and Wet",
   ],
   // Card bank 2
@@ -76,5 +78,26 @@ export const GCARD_NAMES: readonly (readonly string[])[] = [
     "James Brown Rhythm", "Super Stereo Rhythm", "Novo Tremolo", "Rez-o-matic Rhythm",
     "Rock n Rhythm Guitar", "Metal Flange", "Martian Lead Sitar", "Big Lead",
     "Panned Pitch",
+  ],
+];
+
+/**
+ * Blocks routed in each G-Card preset, read from the routing grids in
+ * docs/samples/gforce-g-card-1.syx (card bank 1 copied to the User bank). Bit k
+ * is the block with grid code 4 + k, as in ROM_BLOCKS. Banks 2 and 3 are not
+ * dumped yet. Bank b preset n is GCARD_BLOCKS[b - 1][n - 1].
+ */
+export const GCARD_BLOCKS: readonly (readonly number[])[] = [
+  [
+    0x1d, 0x55, 0xc7, 0xc7, 0x19, 0x1a, 0x19, 0x18, 0x18, 0xc7,
+    0xd0, 0x0b, 0x87, 0x50, 0x90, 0x0e, 0x1a, 0x19, 0x1b, 0x19,
+    0x55, 0x30, 0x40, 0x0a, 0x0a, 0x22, 0x2a, 0x22, 0x2a, 0x2a,
+    0x22, 0x62, 0x62, 0x02, 0x62, 0x99, 0x9b, 0x9b, 0x96, 0x87,
+    0x18, 0x50, 0xff, 0xdf, 0xbb, 0x99, 0xdd, 0xff, 0xf5, 0x22,
+    0x49, 0xa4, 0xd1, 0xd1, 0xd2, 0xde, 0xd4, 0x9a, 0xd1, 0xff,
+    0xff, 0xff, 0x24, 0xff, 0x04, 0xdd, 0xdd, 0xc9, 0xea, 0xe8,
+    0x32, 0x2a, 0x9f, 0xeb, 0xd6, 0xdf, 0xdf, 0xdf, 0xdf, 0xdf,
+    0xdf, 0xdb, 0xdf, 0xdf, 0x9b, 0x9b, 0x9b, 0x5f, 0xdd, 0xdd,
+    0xf9, 0x8b, 0xff, 0xf8, 0xf9, 0xd9, 0x9b, 0x77, 0xe7, 0xd8,
   ],
 ];

@@ -16,6 +16,7 @@ worked out from dumps of a real unit (`samples/`), sent with
 | `gforce-rom-001-100.syx` | ROM 1–100 copied unedited to User 1–100 (see "Record map from ROM 1–225"). An earlier dump of ROM 1–50 alone was byte-identical to its User 1–50, unused-block bytes included |
 | `gforce-rom-101-200.syx` | ROM 101–200 copied unedited to User 1–100. 16 names differ from the manual, 15 in spelling only; ROM 196 is "Delay Tap Tempo" on the unit and "Straight Delay" in the manual |
 | `gforce-rom-201-225.syx` | ROM 201–225 copied unedited to User 1–25. 3 names differ in spelling; 223–224 are "Slow Noise Gate" and "Fast Noise Gate" on the unit, both "Noise Gate Slow" in the manual |
+| `gforce-g-card-1.syx` | TC G-Card bank 1 (100 presets) copied unedited to User 1–100. 19 names differ from the card manual: its typos ("Rhyhmic", "Psycheledic"), names cut to 20 characters ("Subtle Jazz RevDelay", "Pedal Maj-Min"), case and punctuation |
 
 A first capture with an empty User bank sent only the header message, with a
 block count of `02` (its data blocks were not recorded).
@@ -95,7 +96,7 @@ the unit, with its box name: 4 CPR, 5 FIL, 6 PAN, 7 PIT, 8 DLY, 9 DRV, 10 CHO,
 
 | Offset | Size | Meaning | Evidence |
 |---|---|---|---|
-| `0x016` | 2 | `03 00` in 220 of 225; `01 00` in 92, 175, 176 and both Noise Gate presets (223, 224). *Guess:* bit 1 set = Noise Gate off (225 Empty Routing has 3) | single-block Noise Gate presets |
+| `0x016` | 2 | `03 00` in 220 of 225 ROM presets; `01 00` in 92, 175, 176 and both Noise Gate presets (223, 224), and in 10 of G-Card bank 1, mostly fuzz presets (1-70 FuzzFadeIn, 1-71 FuzzWahPedal, 1-72 Fuzz Funn, 1-94). *Guess:* bit 1 set = Noise Gate off (225 Empty Routing has 3) | single-block Noise Gate presets |
 | `0x018` | 8 × 2 | one value 0–3 per block, at even offsets, in block-ID order (Comp … Reverb). *Unknown*; not the sub-algorithm (Comp reaches 3). Set for blocks that are not routed too | varies with the preset |
 | `0x028` | 32 | **routing grid**, 8 columns × 4 rows, column by column: cell = `0x28 + 4·column + row` | see below |
 | `0x048` | 10 | *Guess:* In section / Noise Gate. `0x49` signed −60 … −14 (Threshold dB?), `0x4A` 0–50 (Max. Damping dB?), `0x4B` 3–100 = **Release rate** (15 in 223 Slow Noise Gate, 100 in 224 Fast Noise Gate), `0x48`, `0x4C` 0/1 (Mode?), `0x4D` signed 0 … −9 (Level dB?); `0x4E` = 100, 75 in 16 presets | ranges over ROM 1–225; 223 vs 224 |
@@ -138,16 +139,21 @@ Noise Gate never appears in the grid.
 | 0, 1, 2 | Link Low / Mid / High input, 0–100 (mostly `0 50 100`, a straight line) | manual p.25 link page |
 | 3 | Slope, signed (`FC` = −4 … `15` = 21) | 0 on straight links |
 | 4 | Glide time (mostly 10) | |
-| 5 | source: **1–4 = Ext 1–4** (1 is the pedal: 51 of the 53 presets marked X use it; 174 Jam with Loop, "Ext. 1 controls the looping, Ext. 2 controls the adding", uses 1 and 2; 173 links 1, 2, 3, 4 to four Delay taps), **10 = ENV** (Dyn Delays, Touchwahs; 121 "Envelope controlled crossfade between Reverb and Delay" links 10 to both Mixes, 5000 and 8000; 165 and 167 speed a panner up or down with the signal), **13, 14 = LFO 1, 15, 16 = LFO 2**, likely each LFO's two outputs (164 War of the Worlds moves its two pitch voices with 13 and 15; 171 Who's Next's autowah uses 15). *Guess:* 5–8 Ext 5–8; 9, 11, 12 the ADSRs and the Pitch detector | pedal column, descriptions |
+| 5 | source: **1–4 = Ext 1–4** (1 is the pedal: 51 of the 53 presets marked X use it; 174 Jam with Loop, "Ext. 1 controls the looping, Ext. 2 controls the adding", uses 1 and 2; 173 links 1, 2, 3, 4 to four Delay taps), **10 = ENV** (Dyn Delays, Touchwahs; 121 "Envelope controlled crossfade between Reverb and Delay" links 10 to both Mixes, 5000 and 8000; 165 and 167 speed a panner up or down with the signal), **13, 14 = LFO 1, 15, 16 = LFO 2**, likely each LFO's two outputs (164 War of the Worlds moves its two pitch voices with 13 and 15; 171 Who's Next's autowah uses 15). **11 = ADSR 1** (G-Card 1-5 Rhythmic: "ASDR1 assigned to control Pitch" links 11 to Pitch). *Guess:* 5–8 Ext 5–8 (5 appears on the G-Card); 12 ADSR 2; 9 the Pitch detector | pedal column, descriptions |
 | 6 | target block, as a routing grid code (0 = none) | equals the ID's thousands + 3 |
 | 7 | 0 in all 225 | |
 | 8–9 | **target parameter ID**, 16-bit big-endian; 0 = no target | see below |
 
-Parameter IDs are `1000 × (block code − 3) + n`, so 2xxx Filters, 3xxx Pan+Trem,
-4xxx Pitch, 5xxx Delay, 6xxx Drive, 7xxx Chorus, 8xxx Reverb (Compressor
-1xxx and the In section 0xxx are not linked in these presets). This holds for
-all 183 links with a target in ROM 1–225. `n` = 0, 1, 2 are shared by every
-sub-algorithm and fit Mix, In Level and Out Level: 5002 is the Delay Out
+Parameter IDs are `1000 × (block code − 3) + n`, so 0xxx the In section,
+1xxx Compressor, 2xxx Filters, 3xxx Pan+Trem, 4xxx Pitch, 5xxx Delay, 6xxx
+Drive, 7xxx Chorus, 8xxx Reverb. This holds for all 183 links with a target
+in ROM 1–225 and all links in G-Card bank 1. The G-Card's descriptions name
+several targets: 1001 is "Cpr Adv. In level" (1-96), 915 is the In section's
+In Level ("Ext1 > In level", 1-75; its block byte is 0, as the In section has
+no place in the routing grid). `n` = 0, 1, 2 are shared by every
+sub-algorithm and are Mix, In Level and Out Level. The G-Card confirms 0 and
+1: "Ext1 > Delay Mix" links 5000 (1-43), "Mix level of Pitch" 4000 (1-6),
+"Ext1 > Delay In level" 5001 (1-79, 80, 84). From the ROM: 5002 is the Delay Out
 Level, which the manual's ducking example connects to ENV (p.19) and both Dyn
 Delays use; 5001 is what 10 Mono Pedal Delay's pedal moves ("pedal feeds the
 Delay input"); 8002 is what 36 Pedal Reverb's pedal moves ("controls the level

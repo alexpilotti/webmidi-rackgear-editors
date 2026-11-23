@@ -106,7 +106,10 @@ in any bank recalls it on the G-Force.
   bank select.
 - **G-CARD**: with TC's G-Card in the unit, turn this on. CARD 1–3 then show
   the card's 245 preset names (100, 100 and 45) from the preset table of its
-  manual (`src/gcard.ts`), and CARD 4–6 are hidden. The setting is kept.
+  manual (`src/gcard.ts`), and CARD 4–6 are hidden. Card bank 1 uses the
+  names the unit stores and shows each preset's blocks on the Recall page's
+  SELECT grid, from a dump of the card (`docs/samples/gforce-g-card-1.syx`).
+  The setting is kept.
 
 **Getting the bank:** press **RECEIVE BANK**, then on the G-Force go to
 **Utility → User Bank to MIDI** and press **Enter** twice. A full bank can take
@@ -233,7 +236,7 @@ src/app.ts             panel logic, modes, librarian
 src/ui/components.ts   wheels, keys, pixel LCD and 5×7 font, LED billboard
 src/ui/screens.ts      LCD pages: Recall, Store, parameter list, Utility, Routing
 src/rom.ts             names of the 225 ROM presets (from the manual)
-src/gcard.ts           names of the 245 G-Card presets (from the G-Card manual)
+src/gcard.ts           names of the 245 G-Card presets, and bank 1's blocks (dump)
 src/clock.ts           tempo from incoming MIDI clock
 docs/G-Force_Manual_EN.pdf  TC Electronic owner's manual
 docs/388-tcelectronicGForceBrochure.pdf  G-Card manual and preset list
