@@ -188,15 +188,15 @@ button { font: inherit; color: inherit; }
 .key-led.flash { animation: led-flash 0.5s steps(1) infinite; }
 @keyframes led-flash { 0% { background: var(--led-red); box-shadow: 0 0 5px var(--led-red); } 50% { background: var(--led-off); box-shadow: none; } }
 
-.nav { display: flex; flex-direction: column; gap: 6px; align-self: center; margin-left: auto; }
-.nav-row { display: flex; gap: 12px; }
+.nav { display: grid; grid-template-columns: auto auto; column-gap: 12px; row-gap: 6px; align-self: center; margin-left: auto; }
+/* Two columns, as on the unit: ◄ ► over PARAMETER, EXIT/ENTER over VALUE. */
+.nav-row, .wheels { display: contents; }
 .arrows, .exit-enter { display: flex; gap: 3px; }
 .arrows .pkey { width: 40px; justify-content: center; }
 .arrows .pkey-label { font-size: 10px; }
 .exit-enter .pkey { width: 50px; }
 .exit-enter .pkey:first-child { justify-content: center; }
-.wheels { display: flex; justify-content: space-around; }
-.wheel-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.wheel-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; justify-self: center; }
 .knob.wheel .knob-body { width: 66px; height: 66px; cursor: grab; }
 .knob.wheel .knob-body.grab { cursor: grabbing; }
 .knob.wheel .knob-cap {
