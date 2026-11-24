@@ -1107,7 +1107,7 @@ export class App {
     if (!this.statusEl.textContent) {
       this.statusEl.textContent = A2Midi.supported
         ? 'Press CONNECT, pick the A2 ports, set EXCLUSIVE ON on the A2 (UTILITY → MIDI), then GET ALL.'
-        : 'Web MIDI is unavailable in this browser — use Chrome or Edge. You can still load/save .syx files.';
+        : 'Web MIDI is unavailable in this browser — use Chrome, Firefox, Edge or Opera. You can still load/save .syx files.';
     }
   }
 }

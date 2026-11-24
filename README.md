@@ -36,7 +36,7 @@ npm test            # codec / protocol tests (Node 22+)
 npm run build       # static site in dist/
 ```
 
-Web MIDI with SysEx needs Chrome, Edge or Opera, served from `localhost` or
+Web MIDI with SysEx needs Chrome, Firefox, Edge or Opera, served from `localhost` or
 HTTPS. Without MIDI you can still load and save `.syx` files.
 
 ## License

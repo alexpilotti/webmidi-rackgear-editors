@@ -30,7 +30,7 @@ npm test         # codec / model tests (Node 22+)
 npm run build    # static site in dist/
 ```
 
-Web MIDI with SysEx needs Chrome, Edge or Opera, served from `localhost` or HTTPS.
+Web MIDI with SysEx needs Chrome, Firefox, Edge or Opera, served from `localhost` or HTTPS.
 
 ## Using it with the JMP-1
 

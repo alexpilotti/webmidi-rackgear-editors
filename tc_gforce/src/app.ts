@@ -1779,7 +1779,7 @@ export class App {
     if (!this.statusEl.textContent) {
       this.statusEl.textContent = GfMidi.supported
         ? 'Press CONNECT and pick the G-Force ports, then RECEIVE BANK and start User Bank to MIDI on the unit.'
-        : 'Web MIDI is unavailable in this browser — use Chrome or Edge. You can still load and save .syx files.';
+        : 'Web MIDI is unavailable in this browser — use Chrome, Firefox, Edge or Opera. You can still load and save .syx files.';
     }
     if (this.hasData && this.statusEl.textContent.startsWith('Press CONNECT')) {
       this.statusEl.textContent = 'Bank restored from this browser. It may differ from the G-Force: use RECEIVE BANK to refresh it.';

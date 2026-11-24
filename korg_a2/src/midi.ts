@@ -37,7 +37,7 @@ export class A2Midi {
   }
 
   async connect(): Promise<void> {
-    if (!A2Midi.supported) throw new Error('Web MIDI is not available in this browser (use Chrome, Edge or Opera).');
+    if (!A2Midi.supported) throw new Error('Web MIDI is not available in this browser (use Chrome, Firefox, Edge or Opera).');
     this.access = await navigator.requestMIDIAccess({ sysex: true });
     this.access.onstatechange = () => this.onPortsChanged();
   }

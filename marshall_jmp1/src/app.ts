@@ -889,7 +889,7 @@ export class App {
     if (!this.statusEl.textContent) {
       this.statusEl.textContent = JmpMidi.supported
         ? 'Press CONNECT and pick the JMP-1 ports, then RECEIVE DUMP and press PATCH + VOLUME on the JMP-1.'
-        : 'Web MIDI is unavailable in this browser — use Chrome or Edge. You can still load/save .syx files.';
+        : 'Web MIDI is unavailable in this browser — use Chrome, Firefox, Edge or Opera. You can still load/save .syx files.';
     }
   }
 }

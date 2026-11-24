@@ -46,7 +46,7 @@ export class GfMidi {
   }
 
   async connect(): Promise<void> {
-    if (!GfMidi.supported) throw new Error('Web MIDI is not available in this browser (use Chrome, Edge or Opera).');
+    if (!GfMidi.supported) throw new Error('Web MIDI is not available in this browser (use Chrome, Firefox, Edge or Opera).');
     this.access = await navigator.requestMIDIAccess({ sysex: true });
     this.access.onstatechange = () => this.onPortsChanged();
   }

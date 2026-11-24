@@ -41,7 +41,7 @@ export class JmpMidi {
   }
 
   async connect(): Promise<void> {
-    if (!JmpMidi.supported) throw new Error('Web MIDI is not available in this browser (use Chrome, Edge or Opera).');
+    if (!JmpMidi.supported) throw new Error('Web MIDI is not available in this browser (use Chrome, Firefox, Edge or Opera).');
     this.access = await navigator.requestMIDIAccess({ sysex: true });
     this.access.onstatechange = () => this.onPortsChanged();
   }
