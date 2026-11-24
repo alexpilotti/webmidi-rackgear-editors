@@ -28,8 +28,9 @@ Effects, Modifier and Recall chapters for the rest).
    and scaling. Whatever stays ambiguous gets a one-change dump pair.
 4. Each confirmed parameter goes into `PARAMS` in `src/model.ts` with a test.
 5. Values of the lookup tables (room types, colors, ratios, sub-algorithm
-   names, step tables) not yet seen on the unit are listed, with presets that
-   use them, in [PHOTO_CHECKLIST.md](PHOTO_CHECKLIST.md).
+   names, step tables) are confirmed by photographing presets that use them,
+   found by searching the dumps; values no preset uses need a hand-set User
+   preset and a dump.
 
 **Already found from all 225 ROM presets** (`samples/gforce-rom-*.syx`; see
 "Record map from ROM 1–225" in

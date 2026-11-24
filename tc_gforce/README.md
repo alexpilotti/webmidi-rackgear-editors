@@ -230,7 +230,7 @@ simulated unit, not against the G-Force receiving data.
    16-bit values (Delay Time, Pitch) are stored high byte first: that
    reading gives the One-tap's 0–1480 ms and the Pitch's ±1200 cents across
    all presets, and photos of ROM 3 and ROM 11 match it.
-15. **Photos of single presets** (`docs/PHOTO_CHECKLIST.md`): later Edit
+15. **Photos of single presets**: later Edit
    pages were read from photos of ROM and G-Card presets against their
    dumps. Card 1-76 placed the Phaser (Speed, Tempo, Depth, Order), the
    Advanced Tremolo's Curve, Fixed 2 Voice and the Stereo Delay, and showed
