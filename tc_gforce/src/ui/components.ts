@@ -168,6 +168,9 @@ export class GraphicLcd {
   }
 
   px(x: number, y: number, on = true): void {
+    // Whole dots only: a fractional index would set a stray property on the typed array, not a dot.
+    x = Math.round(x);
+    y = Math.round(y);
     if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
     this.fb[y * this.w + x] = on ? 1 : 0;
   }

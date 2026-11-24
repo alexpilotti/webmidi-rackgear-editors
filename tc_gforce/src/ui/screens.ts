@@ -185,7 +185,7 @@ export function messageBox(lcd: GraphicLcd, text: string): void {
   const y = Math.round((LCD_H - h) / 2);
   lcd.fill(12, y, 216, h);
   lcd.frame(14, y + 2, 212, h - 4, false);
-  shown.forEach((l, i) => lcd.text(120 - GraphicLcd.measure(l) / 2, y + 6 + i * 10, l, { on: false }));
+  shown.forEach((l, i) => lcd.text(Math.round(120 - GraphicLcd.measure(l) / 2), y + 6 + i * 10, l, { on: false }));
 }
 
 /** Big title, page tabs top right (the current one inverted) and a dotted rule. */
