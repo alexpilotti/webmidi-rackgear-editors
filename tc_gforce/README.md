@@ -46,12 +46,13 @@ Web MIDI with SysEx needs Chrome, Edge or Opera, served from `localhost` or HTTP
 
 1. Connect MIDI OUT → G-Force MIDI IN and G-Force MIDI OUT → MIDI IN.
 2. On the G-Force, check **I/O Setup → MIDI → Sysex device ID**.
-3. In the editor, press **CONNECT**, pick the IN and OUT ports and set
-   **SYSEX ID** to the same number, and **CH** to the G-Force Basic channel.
+3. In the editor, press **CONNECT**, pick the IN and OUT ports, set **CH** to
+   the G-Force Basic channel and, under **SETTINGS…**, **SYSEX ID** to the
+   same number.
 4. To recall presets in every bank, set **Mapping mode: External** on the
    G-Force (I/O Setup → MIDI, manual p.22). In any other Mapping mode, the
    unit maps every program change into that one bank. Then set **BANK SEL**
-   and **SIZE** (1–128) in the editor to the unit's **Bank selection** and
+   and **SIZE** (1–128) under **SETTINGS…** in the editor to the unit's **Bank selection** and
    **Bank size**:
    - The manual's table, for Bank size 100: bank 0–2 = ROM 1–100 / 101–200 /
      201–225, bank 3 = USER 1–100, banks 4–9 = card banks 1–6. Read as
@@ -67,8 +68,8 @@ Web MIDI with SysEx needs Chrome, Edge or Opera, served from `localhost` or HTTP
    - **Off**: clicking a preset sends nothing.
 
    The MIDI log shows the bank and program sent for each recall. While
-   Fine or Coarse Adjust is selected, the MIDI unit shows a reminder that
-   Mapping mode must be External.
+   Fine or Coarse Adjust is selected, the Settings dialog shows a reminder
+   that Mapping mode must be External.
 
 **Tempo:** the G-Force has no MIDI clock input (MIDI implementation chart,
 p.55), but its TEMPO control can be driven by MIDI pitch bend. On the unit,

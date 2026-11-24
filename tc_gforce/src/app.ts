@@ -169,6 +169,7 @@ export class App {
   private tempoChSel!: HTMLSelectElement;
   private tempoInfo!: HTMLElement;
   private tempoDialog!: HTMLDialogElement;
+  private settingsDialog!: HTMLDialogElement;
   private clockSel!: HTMLSelectElement;
   private clockBox!: HTMLInputElement;
   /** Follow MIDI clock received by the editor and send its tempo to the unit. */
@@ -180,7 +181,7 @@ export class App {
   private lastSentBpm: number | null = null;
   private mapNote = h('div', { class: 'map-note', role: 'note' },
     h('b', { text: '⚠ G-Force: ' }), 'I/O Setup → MIDI → Mapping mode must be ', h('b', { text: 'EXTERNAL' }),
-    ', with Bank selection and Bank size as set here.');
+    ',', h('br'), 'with Bank selection and Bank size as set here.');
   private midiLeds = {} as Record<'in' | 'out', HTMLElement>;
   private btns: Record<string, HTMLButtonElement> = {};
   private fileInput!: HTMLInputElement;
@@ -1120,7 +1121,8 @@ export class App {
     const scaler = h('div', { class: 'scaler' });
     scaler.append(this.buildPanel(), this.buildMidiUnit(), this.buildLibrary());
     this.tempoDialog = this.buildTempoDialog();
-    document.body.append(this.tempoDialog);
+    this.settingsDialog = this.buildSettingsDialog();
+    document.body.append(this.tempoDialog, this.settingsDialog);
     this.root.append(scaler);
     const fit = () => scaler.style.setProperty('zoom', String(Math.min(1.25, this.root.clientWidth / 1520)));
     new ResizeObserver(fit).observe(this.root);
@@ -1286,7 +1288,7 @@ export class App {
       this.renderMidi();
     });
     this.pcSel.title = PC_MODES.find((m) => m.id === this.pcMode)!.title;
-    const sizeField = this.sizeField = new NumberField({
+    this.sizeField = new NumberField({
       label: 'Bank size', min: 1, max: BANK_SIZE_MAX, value: this.bankSize,
       title: 'The G-Force Bank size, 1–128 (I/O Setup → MIDI). Needs Mapping mode External.',
       onChange: (v) => { this.bankSize = v; this.saveSettings(); },
@@ -1309,14 +1311,13 @@ export class App {
       h('div', { class: 'midi-ports' },
         btn('connect', 'CONNECT', () => void this.connect(), 'Request Web MIDI access (with SysEx)'),
         field('IN', this.inSel), field('OUT', this.outSel),
-        h('div', { class: 'field-row' }, field('CH', this.chSel), field('SYSEX ID', this.idSel)),
-        h('div', { class: 'field-row' }, field('BANK SEL', this.pcSel), field('SIZE', sizeField.el)),
-        this.mapNote),
+        field('CH', this.chSel)),
       h('div', { class: 'midi-actions' },
         btn('receive', 'RECEIVE BANK', () => this.receiveBank(), 'Wait for a User bank dump: on the G-Force, Utility → User Bank to MIDI'),
         btn('send', 'SEND BANK', () => void this.sendBank(), 'Send the User bank: on the G-Force, first arm Utility → MIDI to User Bank'),
         btn('load', 'LOAD .SYX', () => this.fileInput.click(), 'Load a G-Force User bank file'),
         btn('save', 'SAVE .SYX', () => this.saveFile(), 'Save the editor bank as a .syx file'),
+        btn('settingsDlg', 'SETTINGS…', () => this.openSettingsDialog(), 'SysEx ID, bank selection and bank size: must match I/O Setup → MIDI on the G-Force'),
         btn('tempoDlg', 'TEMPO…', () => this.openTempoDialog(), 'Tempo to the G-Force: BPM, source, follow MIDI clock')),
       h('div', { class: 'midi-status' }, this.statusEl, this.logEl)), this.ear());
   }
@@ -1358,6 +1359,28 @@ export class App {
     // Click on the backdrop closes it.
     dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
     return dlg;
+  }
+
+  /** Settings dialog: SysEx ID, bank selection and bank size, which must match the G-Force's I/O Setup → MIDI. */
+  private buildSettingsDialog(): HTMLDialogElement {
+    const ctl = (label: string, el: HTMLElement, note: string) =>
+      h('div', { class: 'tempo-ctl' }, h('div', { class: 'silk', text: label }), el, h('div', { class: 'tempo-note', text: note }));
+    const close = h('button', { class: 'dlg-close', 'aria-label': 'Close', title: 'Close (Esc)', text: '✕' });
+    const dlg = h('dialog', { class: 'tempo-dialog settings-dialog', 'aria-label': 'Settings' },
+      h('div', { class: 'dlg-head' },
+        h('div', { class: 'midi-title', text: 'SETTINGS' }), h('div', { class: 'silk', text: 'AS IN I/O SETUP → MIDI ON THE G-FORCE' }), close),
+      h('div', { class: 'dlg-ctls' },
+        ctl('SYSEX ID', this.idSel, '0–126, for dumps'),
+        ctl('BANK SEL', this.pcSel, 'what choosing a preset sends'),
+        ctl('SIZE', this.sizeField.el, 'Bank size, 1–128')),
+      this.mapNote);
+    close.addEventListener('click', () => dlg.close());
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+    return dlg;
+  }
+
+  openSettingsDialog(): void {
+    if (!this.settingsDialog.open) this.settingsDialog.showModal();
   }
 
   openTempoDialog(): void {
@@ -1480,7 +1503,7 @@ export class App {
     document.addEventListener('keydown', (e) => {
       const t = e.target as HTMLElement;
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (this.tempoDialog.open) return;
+      if (this.tempoDialog.open || this.settingsDialog.open) return;
       if (t.classList?.contains('knob-body')) return;
       const k = e.key.toLowerCase();
       const list = this.mode === 'recall' || this.mode === 'store';
