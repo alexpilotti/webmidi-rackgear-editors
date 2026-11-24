@@ -1545,11 +1545,11 @@ export class App {
   private renderDisplay(): void {
     const lcd = this.lcd;
     const nm = (i: number) => this.presetName(i) || '- empty -';
-    let bb = String(this.current + 1);
+    // The billboard shows the preset the unit has recalled; on the Recall page, VALUE only previews (ENTER recalls).
+    let bb = String((this.unitSel?.n ?? this.current) + 1);
     let label = '';
     switch (this.mode) {
       case 'recall':
-        bb = String(this.recallTarget + 1);
         {
           const b = this.view, t = this.recallTarget;
           const name = b === USER ? nm(t) : b === ROM ? ROM_NAMES[t] : cardName(b, t) || '- on the card -';
