@@ -172,6 +172,14 @@ button { font: inherit; color: inherit; }
   text-align: left;
   transition: transform 0.05s;
 }
+/* The unit's two key colours: near-black (BYPASS, TUNER, TEMPO, CONTROL keys, arrows) and light grey (block keys, EXIT, ENTER). */
+.pkey { background: linear-gradient(180deg, #2a2b2e, #17181a); }
+.pkey.grey { background: linear-gradient(180deg, #8f9195, #74767a); border-color: #2b2b2b; box-shadow: 0 2px 0 #050505, inset 0 1px 0 rgba(255, 255, 255, 0.25); }
+.pkey.grey .pkey-label { color: #ffffff; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45); }
+.pkey.grey .key-led { background: #3b3d36; }
+.pkey.green .key-led.on { background: var(--led-green); box-shadow: 0 0 5px var(--led-green); }
+.pkey.green .key-led.flash { animation-name: led-flash-green; }
+@keyframes led-flash-green { 0% { background: var(--led-green); box-shadow: 0 0 5px var(--led-green); } 50% { background: #3b3d36; box-shadow: none; } }
 .pkey:active { transform: translateY(1px); box-shadow: 0 1px 0 #050505; }
 .pkey:focus-visible { outline: 2px solid #39f; outline-offset: 1px; }
 .pkey-label { font-size: 7.5px; letter-spacing: 0.02em; color: var(--silk); white-space: nowrap; }
@@ -199,39 +207,6 @@ button { font: inherit; color: inherit; }
   box-shadow: 0 0 0 2px #77787c, 0 4px 6px rgba(0, 0, 0, 0.9), inset 0 1px 1px rgba(255, 255, 255, 0.2);
 }
 .knob.wheel .knob-mark { width: 3px; margin-left: -1.5px; height: 30%; top: 4px; }
-
-/* ------------------------------------------------------------------ value strip */
-
-.strip .face { height: 64px; padding: 0 14px 0 18px; gap: 6px; }
-.strip-head { width: 340px; display: flex; flex-direction: column; justify-content: center; gap: 3px; height: 46px; background: #e9e6da; border-radius: 1px; padding: 0 8px; box-shadow: inset 0 0 0 1px #b9b5a6; }
-.strip-head-row { display: flex; align-items: center; gap: 8px; }
-.strip-num { font-size: 15px; font-weight: 700; color: #1b1b1b; min-width: 42px; }
-.name-input {
-  flex: 1; min-width: 0;
-  font: inherit; font-size: 14px; font-weight: 600;
-  color: #1b1b1b;
-  background: transparent;
-  border: none;
-  border-bottom: 1px dashed #b0ab99;
-  padding: 1px 0;
-}
-.name-input:focus { outline: none; border-bottom-color: #1b1b1b; }
-.strip-cell {
-  flex: 1; min-width: 0; height: 46px;
-  display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 2px;
-  padding: 0 8px;
-  background: #e9e6da; color: #1b1b1b;
-  border: none; border-radius: 1px;
-  box-shadow: inset 0 0 0 1px #b9b5a6;
-  cursor: pointer; text-align: left;
-}
-.strip-cell:hover:not(:disabled) { background: #f3f0e6; }
-.strip-cell:disabled { cursor: default; color: #1b1b1b; }
-.strip-cell:last-child { flex: 1.4; }
-.strip-cell.sel { box-shadow: inset 0 0 0 2px #c0281a; }
-.strip-cell.warn .strip-value { color: #b3230f; }
-.strip-title { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: #555; line-height: 1.15; white-space: nowrap; }
-.strip-value { font-size: 14px; font-weight: 600; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 
 /* ------------------------------------------------------------------ MIDI unit */
 
@@ -350,7 +325,7 @@ button { font: inherit; color: inherit; }
 
 /* ------------------------------------------------------------------ User bank */
 
-.library .face, .data .face { padding: 12px 14px 14px 18px; flex-direction: column; align-items: stretch; gap: 8px; }
+.library .face { padding: 12px 14px 14px 18px; flex-direction: column; align-items: stretch; gap: 8px; }
 .lib-head { display: flex; align-items: baseline; gap: 18px; }
 .lib-head .rack-btn { margin-left: auto; align-self: center; padding: 0 12px; }
 .bank-tabs { display: flex; gap: 4px; align-self: center; }
@@ -405,34 +380,6 @@ button { font: inherit; color: inherit; }
 /* The Recall preview / Store target under the VALUE wheel, before ENTER. */
 .lib-row.cue { background: rgba(255, 42, 26, 0.28); box-shadow: inset 0 0 0 1px #ff2a1a; }
 
-/* ------------------------------------------------------------------ preset data */
-
-.data-grid {
-  display: grid;
-  grid-template-columns: repeat(32, 1fr);
-  gap: 2px;
-  background: #0b0b0b;
-  padding: 8px;
-  border: 2px solid #050505;
-  box-shadow: inset 0 0 10px #000;
-}
-.data-cell {
-  padding: 2px 0;
-  border: 1px solid #1e1e1e;
-  border-radius: 1px;
-  background: #121212;
-  font-family: Menlo, Consolas, monospace;
-  font-size: 10px;
-  color: #c9c9c2;
-  cursor: pointer;
-  text-align: center;
-}
-.data-cell.zero { color: #4a4a46; }
-.data-cell.known { border-color: #ff2a1a; color: #ff8a6e; }
-.data-cell.diff { background: #3a2508; color: var(--led-amber); }
-.data-cell.cur { background: #ff2a1a; color: #1a0402; border-color: #ff2a1a; }
-.data-cell:hover:not(.cur):not(:disabled) { border-color: #777; }
-.data-cell:disabled { cursor: default; opacity: 0.4; }
 
 /* ------------------------------------------------------------------ disclaimer */
 

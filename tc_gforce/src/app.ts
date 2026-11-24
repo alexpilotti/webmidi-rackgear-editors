@@ -5,7 +5,7 @@ import { joinMessages, splitSysex, type Codec } from './codec.ts';
 import { GfMidi } from './midi.ts';
 import { ClockMeter } from './clock.ts';
 import {
-  recallBankProgram, CARD_BANKS, MAX_BANK, cardIndex, romIndex, userIndex, Bank, BLOCKS, cleanName, NAME_LEN, paramAt, paramsFor, PARAMS, PARAMS_AT, Preset, RECORD_SIZE, SLOTS,
+  recallBankProgram, CARD_BANKS, MAX_BANK, cardIndex, romIndex, userIndex, Bank, BLOCKS, cleanName, NAME_LEN, paramAt, paramsFor, PARAMS_AT, Preset, RECORD_SIZE, SLOTS,
   PIPE, ROUTED, ROUTING_AT, ROUTING_COLS, ROUTING_ROWS, routedBlock, type BlockId, type ParamDef,
 } from './model.ts';
 import { Billboard, GraphicLcd, h, Knob, NumberField, PanelKey } from './ui/components.ts';
@@ -19,7 +19,6 @@ type Mode = 'recall' | 'edit' | 'effects' | 'store' | 'utility' | 'io' | 'tempo'
 const pad3 = (n: number) => String(n).padStart(3, '0');
 const presets = (n: number) => `${n} User preset${n === 1 ? '' : 's'}`;
 const hex2 = (n: number) => n.toString(16).toUpperCase().padStart(2, '0');
-const hex3 = (n: number) => n.toString(16).toUpperCase().padStart(3, '0');
 const toB64 = (b: Uint8Array) => {
   let s = '';
   for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
@@ -51,8 +50,6 @@ const BANK_SIZE_MAX = 128;
 const BLOCK_LCD: Record<BlockId, string> = {
   gate: 'INPUT', compress: 'COMPRESS', filters: 'FILTER', pantrem: 'PAN+TREM', pitch: 'PITCH', delay: 'DELAY', drive: 'DRIVE', chorus: 'CHORUS', reverb: 'REVERB',
 };
-/** Value strip slots for decoded parameters; a block with more shows a window around the cursor. */
-const STRIP_SLOTS = 7;
 
 /** Banks as on the unit's Recall page: 0 = ROM, 1 = USER, 2–7 = CARD 1–6. */
 const ROM = 0;
@@ -155,14 +152,11 @@ export class App {
   private billboard = new Billboard();
   private keys = {} as Record<string, PanelKey>;
   private indicators = {} as Record<'edited' | 'midi' | 'pedal' | 'overflow', HTMLElement>;
-  private strip: Record<string, HTMLElement> = {};
-  private nameInput!: HTMLInputElement;
   private libRows: HTMLElement[] = [];
   private libList!: HTMLElement;
   private libTitle!: HTMLElement;
   private libHelp!: HTMLElement;
   private bankTabs: HTMLButtonElement[] = [];
-  private dataCells: HTMLButtonElement[] = [];
   private statusEl!: HTMLElement;
   private logEl!: HTMLElement;
   private inSel!: HTMLSelectElement;
@@ -761,6 +755,13 @@ export class App {
     this.render();
   }
 
+  /** Rename the edited User preset (double-click its row); STORE writes the name into the bank. */
+  renamePreset(): void {
+    if (!this.bank.used(this.current) && !this.editDirty) return;
+    const name = prompt(`Name for U${pad3(this.current + 1)} (${NAME_LEN} characters). STORE writes it into the bank.`, this.edit.name.trimEnd());
+    if (name !== null) this.setName(cleanName(name));
+  }
+
   setName(name: string): void {
     this.edit.name = name;
     this.render();
@@ -1117,7 +1118,7 @@ export class App {
 
   private build(): void {
     const scaler = h('div', { class: 'scaler' });
-    scaler.append(this.buildPanel(), this.buildStrip(), this.buildMidiUnit(), this.buildLibrary(), this.buildData());
+    scaler.append(this.buildPanel(), this.buildMidiUnit(), this.buildLibrary());
     this.tempoDialog = this.buildTempoDialog();
     document.body.append(this.tempoDialog);
     this.root.append(scaler);
@@ -1145,7 +1146,11 @@ export class App {
   }
 
   private key(id: string, label: string, fn: () => void, title?: string, led = true): HTMLElement {
-    const k = new PanelKey(label, fn, { title, led });
+    // As on the unit: the block keys and EXIT/ENTER are light grey, the rest black; block keys and EFFECTS have
+    // green LEDs, the others red.
+    const block = BLOCKS.some((b) => b.id === id);
+    const className = [block || id === 'exit' || id === 'enter' ? 'grey' : '', block || id === 'effects' ? 'green' : ''].join(' ').trim();
+    const k = new PanelKey(label, fn, { title, led, className });
     this.keys[id] = k;
     return k.button;
   }
@@ -1215,50 +1220,6 @@ export class App {
 
     return h('section', { class: 'unit gforce', 'aria-label': 'TC Electronic G-Force front panel' },
       this.ear(), h('div', { class: 'face' }, left, window_, fx, control, nav), this.ear());
-  }
-
-  /** Value strip slots for the current block's decoded parameters (GENERAL, then GLOBAL). */
-  private paramSlots: { el: HTMLButtonElement; title: HTMLElement; value: HTMLElement; param?: ParamDef }[] = [];
-  /** Block whose parameters the strip shows when the cursor isn't on one. */
-  private stripBlockId: BlockId = 'reverb';
-
-  /** The block the value strip shows: the one under the Edit or Effects cursor, else the last one. */
-  private stripBlock(): BlockId {
-    const p = this.mode === 'edit' ? paramAt(this.cursor, this.edit) : undefined;
-    const r = this.mode === 'effects' ? routedBlock(this.edit.cell(this.routeCursor.c, this.routeCursor.r)) : undefined;
-    const b = p?.block ?? r?.block;
-    if (b && PARAMS.some((q) => q.block === b)) this.stripBlockId = b;
-    return this.stripBlockId;
-  }
-
-  private buildStrip(): HTMLElement {
-    const slots = Math.min(STRIP_SLOTS, Math.max(...BLOCKS.map((b) => PARAMS.filter((q) => q.block === b.id).length)));
-    this.paramSlots = Array.from({ length: slots }, () => {
-      const title = h('div', { class: 'strip-title' }), value = h('div', { class: 'strip-value' });
-      const el = h('button', { class: 'strip-cell' }, title, value) as HTMLButtonElement;
-      const slot: (typeof this.paramSlots)[number] = { el, title, value };
-      el.addEventListener('click', () => slot.param && this.jumpTo(slot.param.offset));
-      return slot;
-    });
-    const cell = (id: string, label: string, onClick?: () => void, title?: string) => {
-      const v = h('div', { class: 'strip-value' });
-      const c = h('button', { class: 'strip-cell', title: title ?? label }, h('div', { class: 'strip-title', text: label }), v);
-      if (onClick) c.addEventListener('click', onClick);
-      else c.disabled = true;
-      this.strip[id] = v;
-      return c;
-    };
-    this.nameInput = h('input', { class: 'name-input', maxlength: String(NAME_LEN), 'aria-label': 'Preset name', title: 'Preset name (20 characters). STORE writes it into the bank.' });
-    this.nameInput.addEventListener('input', () => this.setName(cleanName(this.nameInput.value)));
-    const head = h('div', { class: 'strip-head' }, h('div', { class: 'strip-title', text: 'User preset · name' }),
-      h('div', { class: 'strip-head-row' }, h('span', { class: 'strip-num' }), this.nameInput));
-    this.strip.num = head.querySelector('.strip-num')!;
-    return h('section', { class: 'unit strip' }, this.ear(), h('div', { class: 'face' },
-      head,
-      ...this.paramSlots.map((s) => s.el),
-      cell('byte', 'Cursor byte', () => this.pressEffects(), 'The byte under the PARAMETER cursor'),
-      cell('stored', 'Stored value', undefined, 'The same byte in the stored preset'),
-      cell('state', 'State')), this.ear());
   }
 
   /**
@@ -1478,7 +1439,7 @@ export class App {
     for (let i = 0; i < ROM_NAMES.length; i++) {
       const row = h('div', { class: 'lib-row', role: 'option' });
       row.addEventListener('click', () => this.recallAt(this.view, i));
-      row.addEventListener('dblclick', () => { if (this.view === USER) this.nameInput.focus(); });
+      row.addEventListener('dblclick', () => { if (this.view === USER) this.renamePreset(); });
       this.libRows.push(row);
       this.libList.append(row);
     }
@@ -1515,20 +1476,6 @@ export class App {
     this.render();
   }
 
-  private buildData(): HTMLElement {
-    const grid = h('div', { class: 'data-grid' });
-    for (let off = PARAMS_AT; off < RECORD_SIZE; off++) {
-      const c = h('button', { class: 'data-cell' });
-      c.addEventListener('click', () => this.jumpTo(off));
-      this.dataCells.push(c);
-      grid.append(c);
-    }
-    return h('section', { class: 'unit data' }, this.ear(), h('div', { class: 'face' },
-      h('div', { class: 'lib-head' }, h('div', { class: 'midi-title', text: 'PRESET DATA' }),
-        h('div', { class: 'silk', text: `bytes ${PARAMS_AT}–${RECORD_SIZE - 1} of the record, hex · click a byte to edit it with VALUE · named = decoded · orange = differs from the stored preset` })),
-      grid), this.ear());
-  }
-
   private wireKeyboard(): void {
     document.addEventListener('keydown', (e) => {
       const t = e.target as HTMLElement;
@@ -1563,9 +1510,7 @@ export class App {
     this.persistSoon();
     this.renderDisplay();
     this.renderKeys();
-    this.renderStrip();
     this.renderLibrary();
-    this.renderData();
     this.renderMidi();
   }
 
@@ -1728,38 +1673,6 @@ export class App {
     for (const b of BLOCKS) set(b.id, (this.mode === 'edit' && p?.block === b.id) || routed === b.id ? 'on' : 'off');
   }
 
-  private renderStrip(): void {
-    this.strip.num.textContent = `U${pad3(this.current + 1)}`;
-    if (document.activeElement !== this.nameInput) this.nameInput.value = this.presetName(this.current);
-    const used = this.bank.used(this.current) || this.editDirty;
-    this.nameInput.disabled = !used;
-    this.nameInput.placeholder = used ? '' : 'empty slot';
-    const block = this.stripBlock();
-    const label = BLOCKS.find((b) => b.id === block)!.label;
-    // The block's parameters in this preset; when they don't all fit, a window around the cursor.
-    const all = paramsFor(this.edit, block);
-    const n = this.paramSlots.length;
-    const at = all.findIndex((q) => q.offset === this.cursor);
-    const first = all.length > n && at >= 0 ? Math.min(all.length - n, Math.max(0, at - Math.floor(n / 2))) : 0;
-    const params = all.slice(first, first + n);
-    this.paramSlots.forEach((slot, k) => {
-      const p = params[k];
-      slot.param = p;
-      slot.el.style.visibility = p ? '' : 'hidden';
-      if (!p) return;
-      slot.title.textContent = `${label} · ${p.label}`;
-      slot.el.title = p.source;
-      slot.value.textContent = used ? (this.edit.linked(p) ? '■ ' : '') + p.format(this.edit.get(p)) : '—';
-      slot.el.classList.toggle('sel', this.mode === 'edit' && this.cursor === p.offset);
-    });
-    const v = this.edit.byte(this.cursor), s = this.bank.preset(this.current).byte(this.cursor);
-    this.strip.byte.textContent = this.mode === 'effects' ? this.cellText() : `${this.cursor} · ${hex2(v)}h · ${v}`;
-    this.strip.stored.textContent = `${hex2(s)}h · ${s}`;
-    const unsent = this.slotUnsent(this.current);
-    this.strip.state.textContent = this.editDirty ? 'Edited · not stored' : unsent ? 'Stored · not sent' : used ? 'Stored' : 'Empty slot';
-    this.strip.state.parentElement!.classList.toggle('warn', this.editDirty);
-  }
-
   private renderLibrary(): void {
     const b = this.view, count = bankCount(b);
     this.bankTabs.forEach((t, k) => {
@@ -1811,23 +1724,6 @@ export class App {
 
   /** Last list row cued, so the list scrolls only when the cue moves. */
   private lastCue = -1;
-
-  private renderData(): void {
-    const stored = this.bank.preset(this.current);
-    const used = this.bank.used(this.current) || this.editDirty;
-    this.dataCells.forEach((c, k) => {
-      const off = PARAMS_AT + k;
-      const v = this.edit.byte(off);
-      const p = paramAt(off, this.edit);
-      c.textContent = hex2(v);
-      c.title = `byte ${off} (0x${hex3(off)}) = ${v}${p ? ` · ${p.label}: ${p.format(this.edit.get(p))}` : ''}`;
-      c.classList.toggle('known', !!p);
-      c.classList.toggle('zero', v === 0);
-      c.classList.toggle('diff', v !== stored.byte(off));
-      c.classList.toggle('cur', this.mode === 'edit' && off === this.cursor);
-      c.disabled = !used;
-    });
-  }
 
   private renderMidi(): void {
     if (!this.statusEl) return;

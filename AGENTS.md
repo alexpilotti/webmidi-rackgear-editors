@@ -63,8 +63,8 @@ Rules for all apps:
 - **No hardware tests yet.** Everything has been tested against simulated
   units, not hardware (the JMP-1 and G-Force tests do use dumps recorded from
   real units). Don't claim hardware behaviour is verified.
-- **Rack look.** The UI is a 19" rack: the unit's front panel, a value strip, a
-  MIDI unit and lists. It is laid out at a fixed 1520px width and scaled with
+- **Rack look.** The UI is a 19" rack: the unit's front panel, a value strip
+  (not in the G-Force editor, whose LCD pages show the values), a MIDI unit and lists. It is laid out at a fixed 1520px width and scaled with
   CSS `zoom`. Text uses the Helvetica font stack. Hardware LEDs keep their real
   colours.
 - **Trademarks.** Brand names are used only to identify the hardware.
@@ -210,7 +210,7 @@ User docs are in `tc_gforce/README.md`.
 - **Slots after the last stored one are not in the dump**; empty slots below
   it are 614 zero bytes. `Bank.stream()` rebuilds the dump and must stay
   byte-identical for unedited banks.
-- **Undecoded bytes are edited raw** (PRESET DATA grid), never guessed at.
+- **Undecoded bytes are edited raw** (the LCD's PRESET DATA - RAW page), never guessed at.
 - **Use the local manual.** Read `docs/G-Force_Manual_EN.pdf` instead of
   fetching the manual online.
 - **Panel look.** Follow the manual's front panel drawing (pp.8–9 of the

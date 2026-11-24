@@ -10,10 +10,10 @@ panel modelled on the real G-Force.
 - **Lists all User presets**: RECEIVE BANK records the User bank that the
   G-Force sends with **Utility → User Bank to MIDI**. The list shows User 1–100
   with their names, and empty slots.
-- **Edits them**: rename, copy to another slot (STORE), clear a slot, and edit
-  the preset data. Only the name and the Reverb DECAY TIME are decoded so far.
-  Every other parameter is shown and edited as a raw byte, in the PRESET DATA
-  grid.
+- **Edits them**: rename (double-click the preset in the list), copy to
+  another slot (STORE), clear a slot, and edit the decoded parameters on each
+  block's Edit page, laid out like the unit's. Bytes not decoded yet are shown
+  and edited raw on the LCD's PRESET DATA - RAW page.
 - **Sends them back**: SEND BANK sends the whole User bank. The G-Force has no
   known way to receive a single preset or a parameter change, so there is no
   live editing.
@@ -126,7 +126,7 @@ A faulty transfer can leave the User bank empty, so keep the backup.
 |---|---|
 | RECALL | as on the unit (manual p.17): PARAMETER moves the cursor between SELECT, BANK and PRESET (its label is inverted); VALUE changes that field (BANK switches ROM / USER / CARD 1–6, PRESET previews); ENTER recalls on the G-Force (a User preset is also loaded into the edit buffer). The SELECT grid shows ALL and the blocks the preset uses, at the unit's fixed places (CPR FIL / PAN PIT DLY / DRV CHO REV): from the data for User presets, from the ROM dumps for ROM presets (all 225), blank for card presets. SELECT stays on ALL: partial recall is on the unit only |
 | STORE | VALUE chooses the target slot, ENTER stores the edit buffer there |
-| EFFECTS | the Effects display, drawn like the unit's: "Eff." with the MIX / EDIT / ROUTING / LAYOUT tabs, the In and OUT bars and the edited User preset's block diagram (CPR, FIL, PAN, PIT, DLY, DRV, CHO, REV boxes, as named on the unit, wired through the 8 × 4 routing grid). ◄ ► switch EDIT and ROUTING (MIX and LAYOUT are on the unit only). On EDIT, PARAMETER moves the cursor from block to block; on ROUTING, over every cell. The value strip names the cell, its block and its sub-algorithm. ENTER on a block opens its Edit page, laid out like the unit's: the title (e.g. REVERB - ADVANCED), the decoded parameters under the unit's section headings (for the Advanced Reverb: MASTER SECTION, ROOM SETTINGS, DECAY SETTINGS, GLOBAL), and a bar with the value under it. PARAMETER moves through the parameters, VALUE changes them, and EXIT goes back to the diagram. A block with nothing decoded yet opens on its raw bytes (PRESET DATA - RAW), as do clicks on undecoded bytes in the PRESET DATA grid. The routing itself is read-only: change it on the unit |
+| EFFECTS | the Effects display, drawn like the unit's: "Eff." with the MIX / EDIT / ROUTING / LAYOUT tabs, the In and OUT bars and the edited User preset's block diagram (CPR, FIL, PAN, PIT, DLY, DRV, CHO, REV boxes, as named on the unit, wired through the 8 × 4 routing grid). ◄ ► switch EDIT and ROUTING (MIX and LAYOUT are on the unit only). On EDIT, PARAMETER moves the cursor from block to block; on ROUTING, over every cell. ENTER on a block opens its Edit page, laid out like the unit's: the title (e.g. REVERB - ADVANCED), the decoded parameters under the unit's section headings (for the Advanced Reverb: MASTER SECTION, ROOM SETTINGS, DECAY SETTINGS, GLOBAL), and a bar with the value under it. PARAMETER moves through the parameters, VALUE changes them, and EXIT goes back to the diagram. A block with nothing decoded yet opens on its raw bytes (PRESET DATA - RAW). The routing itself is read-only: change it on the unit |
 | GATE … REVERB | step through that block's decoded parameters: its own first, then GLOBAL (MIX LEVEL, IN LEVEL, OUT LEVEL where the block has them, MUTE MODE). GATE: MODE, THRESHOLD, MAX DAMPING, REL.RATE, LEVEL. COMPRESS: THRESHOLD, RATIO, KNEE MODE, RELEASE, IN and OUT LEVEL. Some depend on the sub-algorithm and appear only there: DELAY One-tap TIME, TEMPO, FEEDBACK, PAN, LOCUT, HICUT; PITCH Fixed 1 Voice PITCH; PAN+TREM Simple Tremolo and Simple Panner SPEED, TEMPO (and the Tremolo's DEPTH); DELAY Dual LINE 1/2 TIME and TEMPO; PITCH Dual Detune VOICE1/2 DELAY; CHORUS Classic and Advanced SPEED, TEMPO, DEPTH, and Advanced's DELAY, GOLDEN RATIO, PHASE REVERSE, CURVE, PHASE; COMPRESS KNEE MODE and RELEASE only in Advanced; REVERB Advanced: all fifteen of its page (ROOM TYPE … DIFFUSE, with DECAY TIME). |
 | I/O SETUP | MIDI, CONTROL and AUDIO pages (◄ ►), as on the unit. The MIDI page shows and edits the editor's settings (Basic channel, Program change, Bank selection, Bank size, SysEx ID), which must match the unit's; Mapping mode must be External on the unit. CONTROL and AUDIO are listed but set on the unit only |
 | UTILITY | CONFIG and BILLBOARD pages (◄ ►), as on the unit. In CONFIG, USER BANK TO MIDI (the editor receives) and MIDI TO USER BANK (the editor sends) run with ENTER; the other items are on the unit only. Tuner MIDI Out must be Off on the unit for dumps (manual p.29) |
@@ -135,10 +135,9 @@ A faulty transfer can leave the User bank empty, so keep the backup.
 | TEMPO | Tempo page, after the unit's (manual p.31): VALUE dials 20–300 BPM, which is sent to the G-Force; the TEMPO source channel is set here too. The key's LED blinks at the tempo |
 | BYPASS, TUNER, MOD | on the unit only |
 
-The value strip shows the decoded parameters of the block under the cursor (the
-last block chosen otherwise), the byte under the cursor and the stored value. The name field renames the edit buffer; STORE writes it. In the
-PRESET DATA grid, click a byte to put the cursor on it. Orange bytes differ
-from the stored preset. In the preset list, the filled row is the preset
+Double-click a User preset in the list to rename it; STORE writes the name.
+The EDITED LED lights while the edit buffer differs from the stored preset.
+In the preset list, the filled row is the preset
 recalled (or being edited); an outlined row is the one the Recall page
 previews or STORE targets, which ENTER acts on.
 
