@@ -174,6 +174,9 @@ export class App {
   private clockBox!: HTMLInputElement;
   /** Follow MIDI clock received by the editor and send its tempo to the unit. */
   followClock = false;
+  /** Recall page: VALUE (wheel or ↑/↓) recalls each preset at once, without ENTER (an editor option). */
+  recallDirect = false;
+  private directBox!: HTMLInputElement;
   private clock = new ClockMeter();
   private clockBpm: number | null = null;
   private lastClockAt = 0;
@@ -239,6 +242,7 @@ export class App {
         if (this.recallField === 0) return this.flash('PARTIAL RECALL: ON THE UNIT ONLY');
         const n = bankCount(this.view);
         this.recallTarget = (this.recallTarget + step + n * 10) % n;
+        if (this.recallDirect) return this.recallAt(this.view, this.recallTarget);
         return this.render();
       }
       case 'store':
@@ -1019,7 +1023,7 @@ export class App {
 
   private settings(): {
     input?: string; output?: string; id?: number; channel?: number; pc?: string; bankSize?: number; bpm?: number; tempoCh?: number;
-    followClock?: boolean; clockIn?: string; gcard?: boolean;
+    followClock?: boolean; clockIn?: string; gcard?: boolean; direct?: boolean;
     view?: number; unitSel?: { bank: number; n: number } | null;
   } {
     try {
@@ -1046,6 +1050,7 @@ export class App {
         bpm: this.bpm,
         tempoCh: this.tempoCh,
         followClock: this.followClock,
+        direct: this.recallDirect,
         gcard,
         clockIn: this.midi.connected ? (this.clockSel.value ? this.clockSel.selectedOptions[0]?.text : undefined) : old.clockIn,
       }));
@@ -1086,6 +1091,7 @@ export class App {
     const tc = Number(this.settings().tempoCh);
     if (Number.isInteger(tc) && tc >= TEMPO_BASIC && tc <= 15) this.tempoCh = tc;
     this.followClock = this.settings().followClock === true;
+    this.recallDirect = this.settings().direct === true;
     gcard = this.settings().gcard === true;
     this.restoreMemory();
     const v = Number(this.settings().view);
@@ -1372,11 +1378,20 @@ export class App {
       h('div', { class: 'dlg-ctls' },
         ctl('SYSEX ID', this.idSel, '0–126, for dumps'),
         ctl('BANK SEL', this.pcSel, 'what choosing a preset sends'),
-        ctl('SIZE', this.sizeField.el, 'Bank size, 1–128')),
+        ctl('SIZE', this.sizeField.el, 'Bank size, 1–128'),
+        ctl('RECALL', this.buildDirectCtl(), 'editor option')),
       this.mapNote);
     close.addEventListener('click', () => dlg.close());
     dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
     return dlg;
+  }
+
+  private buildDirectCtl(): HTMLElement {
+    this.directBox = h('input', { type: 'checkbox' });
+    this.directBox.checked = this.recallDirect;
+    this.directBox.addEventListener('change', () => { this.recallDirect = this.directBox.checked; this.saveSettings(); this.render(); });
+    return h('label', { class: 'clock-check', title: 'On the Recall page, VALUE (wheel or ↑/↓) recalls each preset at once. The unit itself waits for ENTER.' },
+      this.directBox, h('span', { text: 'WITHOUT ENTER' }));
   }
 
   openSettingsDialog(): void {
