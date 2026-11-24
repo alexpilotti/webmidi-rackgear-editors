@@ -5,7 +5,7 @@ import { joinMessages, splitSysex, type Codec } from './codec.ts';
 import { GfMidi } from './midi.ts';
 import { ClockMeter } from './clock.ts';
 import {
-  recallBankProgram, CARD_BANKS, MAX_BANK, cardIndex, romIndex, userIndex, Bank, BLOCKS, cleanName, NAME_LEN, paramAt, paramValue, PARAMS, PARAMS_AT, Preset, RECORD_SIZE, SLOTS,
+  recallBankProgram, CARD_BANKS, MAX_BANK, cardIndex, romIndex, userIndex, Bank, BLOCKS, cleanName, NAME_LEN, paramAt, paramsFor, PARAMS, PARAMS_AT, Preset, RECORD_SIZE, SLOTS,
   PIPE, ROUTED, ROUTING_AT, ROUTING_COLS, ROUTING_ROWS, routedBlock, type BlockId, type ParamDef,
 } from './model.ts';
 import { Billboard, GraphicLcd, h, Knob, NumberField, PanelKey } from './ui/components.ts';
@@ -47,6 +47,12 @@ const PC_MODES = [
 type PcMode = (typeof PC_MODES)[number]['id'];
 /** Bank size on the unit: 1–128 (I/O Setup → MIDI). */
 const BANK_SIZE_MAX = 128;
+/** Block names in the unit's Edit page titles (photos: COMPRESS, FILTER, DELAY, CHORUS, REVERB). */
+const BLOCK_LCD: Record<BlockId, string> = {
+  gate: 'INPUT', compress: 'COMPRESS', filters: 'FILTER', pantrem: 'PAN+TREM', pitch: 'PITCH', delay: 'DELAY', drive: 'DRIVE', chorus: 'CHORUS', reverb: 'REVERB',
+};
+/** Value strip slots for decoded parameters; a block with more shows a window around the cursor. */
+const STRIP_SLOTS = 7;
 
 /** Banks as on the unit's Recall page: 0 = ROM, 1 = USER, 2–7 = CARD 1–6. */
 const ROM = 0;
@@ -245,7 +251,7 @@ export class App {
         return this.render();
       case 'edit': {
         if (!this.bank.used(this.current) && !this.editDirty) return this.flash('EMPTY PRESET - NOTHING TO EDIT');
-        const p = paramAt(this.cursor);
+        const p = paramAt(this.cursor, this.edit);
         if (p) this.edit.set(p, this.edit.get(p) + step);
         else this.edit.setByte(this.cursor, this.edit.byte(this.cursor) + step);
         return this.render();
@@ -271,6 +277,14 @@ export class App {
   /** PARAMETER wheel. */
   private turnParameter(delta: number, fast: boolean): void {
     if (this.mode === 'edit') {
+      // On a decoded parameter, PARAMETER moves through the block's parameters, as on the unit.
+      const p = paramAt(this.cursor, this.edit);
+      if (p) {
+        const list = paramsFor(this.edit, p.block);
+        const i = list.indexOf(p);
+        this.cursor = list[Math.max(0, Math.min(list.length - 1, i + (fast ? delta * 4 : delta)))].offset;
+        return this.render();
+      }
       const span = RECORD_SIZE - PARAMS_AT;
       this.cursor = PARAMS_AT + ((this.cursor - PARAMS_AT + (fast ? delta * 16 : delta) + span * 10) % span);
       return this.render();
@@ -612,10 +626,11 @@ export class App {
       case 'store':
         return this.storeTo(this.storeTarget);
       case 'effects': {
-        // ENTER on a block opens its data at the sub-algorithm byte (raw Edit).
+        // ENTER on a block opens its Edit page: its decoded parameters, else its raw data.
         const b = routedBlock(this.edit.cell(this.routeCursor.c, this.routeCursor.r));
         if (!b) return this.flash('NO BLOCK HERE');
-        return this.jumpTo(b.subAt ?? ROUTING_AT + this.routeCursor.c * ROUTING_ROWS + this.routeCursor.r);
+        const first = paramsFor(this.edit, b.block)[0];
+        return this.jumpTo(first?.offset ?? b.subAt ?? ROUTING_AT + this.routeCursor.c * ROUTING_ROWS + this.routeCursor.r);
       }
       case 'utility':
       case 'io':
@@ -632,7 +647,7 @@ export class App {
   pressBlock(id: BlockId): void {
     if (this.busy) return;
     const label = BLOCKS.find((b) => b.id === id)!.label;
-    const params = PARAMS.filter((p) => p.block === id);
+    const params = paramsFor(this.edit, id);
     this.mode = 'edit';
     if (params.length) {
       const i = params.findIndex((p) => p.offset === this.cursor);
@@ -1183,7 +1198,7 @@ export class App {
       h('div', { class: 'ctl-grid' },
         this.key('recall', 'RECALL', () => this.pressRecall(), 'Recall: turn VALUE to choose a User preset, ENTER loads it (R)'),
         this.key('store', 'STORE', () => this.pressStore(), 'Store: turn VALUE to choose the slot, ENTER stores (S)'),
-        this.key('effects', 'EFFECTS', () => this.pressEffects(), 'Effects: the block diagram. ◄ ► switch EDIT (PARAMETER picks a block, ENTER opens its data) and ROUTING (any cell). In the data, PARAMETER moves through the bytes, VALUE changes them, EXIT goes back (E)'),
+        this.key('effects', 'EFFECTS', () => this.pressEffects(), 'Effects: the block diagram. ◄ ► switch EDIT (PARAMETER picks a block, ENTER opens its Edit page) and ROUTING (any cell). On the Edit page PARAMETER moves through the parameters, VALUE changes them, EXIT goes back (E)'),
         this.key('mod', 'MOD', () => this.notInEditor('MODIFIERS'), 'Modifiers (not decoded yet)'),
         this.key('io', 'I/O SETUP', () => this.pressIo(), 'I/O Setup: MIDI settings of the editor (◄ ► for CONTROL and AUDIO) (I)'),
         this.key('utility', 'UTILITY', () => this.pressUtility(), 'Utility: send or receive the User bank (U)')));
@@ -1209,7 +1224,7 @@ export class App {
 
   /** The block the value strip shows: the one under the Edit or Effects cursor, else the last one. */
   private stripBlock(): BlockId {
-    const p = this.mode === 'edit' ? paramAt(this.cursor) : undefined;
+    const p = this.mode === 'edit' ? paramAt(this.cursor, this.edit) : undefined;
     const r = this.mode === 'effects' ? routedBlock(this.edit.cell(this.routeCursor.c, this.routeCursor.r)) : undefined;
     const b = p?.block ?? r?.block;
     if (b && PARAMS.some((q) => q.block === b)) this.stripBlockId = b;
@@ -1217,7 +1232,7 @@ export class App {
   }
 
   private buildStrip(): HTMLElement {
-    const slots = Math.max(...BLOCKS.map((b) => PARAMS.filter((q) => q.block === b.id).length));
+    const slots = Math.min(STRIP_SLOTS, Math.max(...BLOCKS.map((b) => PARAMS.filter((q) => q.block === b.id).length)));
     this.paramSlots = Array.from({ length: slots }, () => {
       const title = h('div', { class: 'strip-title' }), value = h('div', { class: 'strip-value' });
       const el = h('button', { class: 'strip-cell' }, title, value) as HTMLButtonElement;
@@ -1256,6 +1271,14 @@ export class App {
       : b === ROM ? ROM_BLOCKS[t] ?? 0
         : gcard ? GCARD_BLOCKS[b - 2]?.[t] ?? 0 : 0;
     return ROUTED.map((r, k) => (mask & (1 << k) ? r.short : ''));
+  }
+
+  /** Edit page title as on the unit: block and sub-algorithm, e.g. REVERB - ADVANCED. */
+  private blockTitle(block: BlockId): string {
+    const name = BLOCK_LCD[block];
+    const r = ROUTED.find((x) => x.block === block);
+    const sub = r ? this.edit.subAlgo(r) : '';
+    return sub ? `${name} - ${sub}` : name;
   }
 
   /** The Effects cursor cell in words: position, block and sub-algorithm. */
@@ -1581,26 +1604,48 @@ export class App {
         label = `Store ${this.edit.name} into User ${this.storeTarget + 1}`;
         break;
       case 'edit': {
-        const p = paramAt(this.cursor);
-        const v = this.edit.byte(this.cursor);
-        const stored = this.bank.preset(this.current).byte(this.cursor);
-        const fmt = (q: ParamDef | undefined, x: number) => (q ? q.format(paramValue(q, x)) : `${hex2(x)}H`);
-        const rows: ListRow[] = [{ label: `U${pad3(this.current + 1)} ${this.edit.name}`.toUpperCase(), header: true }];
-        for (let off = PARAMS_AT; off < RECORD_SIZE; off++) {
-          const q = paramAt(off);
-          rows.push({ label: q ? q.label.toUpperCase() : `BYTE ${off}`, value: fmt(q, this.edit.byte(off)).toUpperCase() });
+        const e = this.edit, storedPreset = this.bank.preset(this.current);
+        const p = paramAt(this.cursor, e);
+        const v = e.byte(this.cursor);
+        const stored = storedPreset.byte(this.cursor);
+        // A decoded parameter shows its value (16-bit ones from both bytes); other bytes in hex.
+        const fmt = (q: ParamDef | undefined, pr: Preset, off: number) => (q ? q.format(pr.get(q)) : `${hex2(pr.byte(off))}H`);
+        // Upper case as on the LCD, but with the unit's dB, Hz and kHz.
+        const lcdCase = (t: string) => t.toUpperCase().replace(/\bDB\b/g, 'dB').replace(/\bKHZ\b/g, 'kHz').replace(/\bHZ\b/g, 'Hz').replace(/DB\/S\b/g, 'dB/S');
+        let rows: ListRow[];
+        let cursor: number;
+        if (p) {
+          // The block's Edit page, as on the unit: its parameters under their section headings.
+          rows = [];
+          let section: string | undefined;
+          cursor = 0;
+          for (const q of paramsFor(e, p.block)) {
+            const sec = q.section ?? 'GENERAL';
+            if (sec !== section && sec) rows.push({ label: sec, header: true });
+            section = sec;
+            if (q === p) cursor = rows.length;
+            rows.push({ label: q.label.toUpperCase(), value: (e.linked(q) ? '■' : '') + lcdCase(fmt(q, e, q.offset)) });
+          }
+        } else {
+          rows = [{ label: `U${pad3(this.current + 1)} ${e.name}`.toUpperCase(), header: true }];
+          for (let off = PARAMS_AT; off < RECORD_SIZE; off++) {
+            const q = paramAt(off, e);
+            rows.push({ label: q ? q.label.toUpperCase() : `BYTE ${off}`, value: (q && e.linked(q) ? '■' : '') + lcdCase(fmt(q, e, off)) });
+          }
+          cursor = 1 + this.cursor - PARAMS_AT;
         }
-        const block = p ? BLOCKS.find((b) => b.id === p.block)!.label : 'PRESET DATA';
         paramPage(lcd, {
-          title: p ? `${block} - DECODED` : 'PRESET DATA - RAW',
+          title: p ? this.blockTitle(p.block) : 'PRESET DATA - RAW',
           tab: 'PARAM',
           rows,
-          cursor: 1 + this.cursor - PARAMS_AT,
+          cursor,
           barLabel: p ? p.label.toUpperCase() : `BYTE ${this.cursor}`,
-          bar: p ? (paramValue(p, v) - p.min) / (p.max - p.min) : v / 255,
-          barNote: v !== stored ? `WAS ${fmt(p, stored).toUpperCase()}` : `${v}`,
+          bar: p ? (e.get(p) - p.min) / (p.max - p.min) : v / 255,
+          // Under the bar: the value as the unit shows it there (WARM, 2.5 S), or what it was before editing.
+          barNote: (p ? e.get(p) !== storedPreset.get(p) : v !== stored) ? `WAS ${lcdCase(fmt(p, storedPreset, this.cursor))}`
+            : p ? lcdCase(fmt(p, e, this.cursor)) : `${v}`,
         });
-        label = `Edit ${p ? p.label : `byte ${this.cursor}`}: ${fmt(p, v)}`;
+        label = `Edit ${p ? p.label : `byte ${this.cursor}`}: ${fmt(p, e, this.cursor)}`;
         break;
       }
       case 'effects': {
@@ -1678,7 +1723,7 @@ export class App {
     set('utility', this.mode === 'utility' || this.busy ? 'on' : 'off');
     set('io', this.mode === 'io' ? 'on' : 'off');
     set('enter', this.mode === 'store' || (this.mode === 'utility' && !!this.menuItems()[this.utilCursor]?.enter) || (this.mode === 'recall' && (this.view !== USER || this.recallTarget !== this.current)) ? 'flash' : 'off');
-    const p = paramAt(this.cursor);
+    const p = paramAt(this.cursor, this.edit);
     const routed = this.mode === 'effects' ? routedBlock(this.edit.cell(this.routeCursor.c, this.routeCursor.r))?.block : undefined;
     for (const b of BLOCKS) set(b.id, (this.mode === 'edit' && p?.block === b.id) || routed === b.id ? 'on' : 'off');
   }
@@ -1691,7 +1736,12 @@ export class App {
     this.nameInput.placeholder = used ? '' : 'empty slot';
     const block = this.stripBlock();
     const label = BLOCKS.find((b) => b.id === block)!.label;
-    const params = PARAMS.filter((q) => q.block === block);
+    // The block's parameters in this preset; when they don't all fit, a window around the cursor.
+    const all = paramsFor(this.edit, block);
+    const n = this.paramSlots.length;
+    const at = all.findIndex((q) => q.offset === this.cursor);
+    const first = all.length > n && at >= 0 ? Math.min(all.length - n, Math.max(0, at - Math.floor(n / 2))) : 0;
+    const params = all.slice(first, first + n);
     this.paramSlots.forEach((slot, k) => {
       const p = params[k];
       slot.param = p;
@@ -1699,7 +1749,7 @@ export class App {
       if (!p) return;
       slot.title.textContent = `${label} · ${p.label}`;
       slot.el.title = p.source;
-      slot.value.textContent = used ? p.format(this.edit.get(p)) : '—';
+      slot.value.textContent = used ? (this.edit.linked(p) ? '■ ' : '') + p.format(this.edit.get(p)) : '—';
       slot.el.classList.toggle('sel', this.mode === 'edit' && this.cursor === p.offset);
     });
     const v = this.edit.byte(this.cursor), s = this.bank.preset(this.current).byte(this.cursor);
@@ -1768,9 +1818,9 @@ export class App {
     this.dataCells.forEach((c, k) => {
       const off = PARAMS_AT + k;
       const v = this.edit.byte(off);
-      const p = paramAt(off);
+      const p = paramAt(off, this.edit);
       c.textContent = hex2(v);
-      c.title = `byte ${off} (0x${hex3(off)}) = ${v}${p ? ` · ${p.label}: ${p.format(v)}` : ''}`;
+      c.title = `byte ${off} (0x${hex3(off)}) = ${v}${p ? ` · ${p.label}: ${p.format(this.edit.get(p))}` : ''}`;
       c.classList.toggle('known', !!p);
       c.classList.toggle('zero', v === 0);
       c.classList.toggle('diff', v !== stored.byte(off));

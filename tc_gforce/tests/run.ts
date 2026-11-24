@@ -8,7 +8,7 @@ import { BLOCK_LEN, codecFromInstance, joinMessages, splitSysex } from '../src/c
 import { ROM_BLOCKS, ROM_NAMES } from '../src/rom.ts';
 import { ClockMeter } from '../src/clock.ts';
 import { GCARD_BLOCKS, GCARD_NAMES } from '../src/gcard.ts';
-import { Bank, BLOCK_AT, bankProgram, recallBankProgram, romIndex, cardIndex, HEADER_SIZE, ROUTED, routedBlock, ROUTING_COLS, ROUTING_ROWS, userIndex, NAME_LEN, PARAMS, Preset, RECORD_SIZE, SLOTS } from '../src/model.ts';
+import { Bank, BLOCK_AT, BLOCKS, bankProgram, paramApplies, paramAt, paramsFor, recallBankProgram, romIndex, cardIndex, HEADER_SIZE, ROUTED, routedBlock, ROUTING_COLS, ROUTING_ROWS, userIndex, NAME_LEN, PARAMS, PARAMS_AT, Preset, RECORD_SIZE, SLOTS } from '../src/model.ts';
 
 let failures = 0;
 const test = (name: string, fn: () => void) => {
@@ -268,12 +268,12 @@ test('sub-algorithms of ROM presets: names seen on the unit, guesses marked', ()
   eq(sub(1, 'reverb'), 'ADVANCED'); // photo: REVERB - ADVANCED
   eq(sub(7, 'filters'), 'WAH-WAH'); // photo: FILTER - WAH-WAH
   eq(sub(3, 'delay'), 'ONE-TAP'); // photo: DELAY - ONE-TAP
-  eq(sub(5, 'pitch'), 'DETUNE?'); // Mono Doubler
-  eq(sub(4, 'pitch'), 'INTELLIGENT?'); // Mono Harmony
-  eq(sub(15, 'pantrem'), 'SURROUND PANNER?'); // pans beyond a normal stereo image
-  eq(sub(8, 'filters'), 'PHASER?');
-  eq(sub(38, 'filters'), 'PARAMETRIC EQ?');
-  eq(sub(44, 'chorus'), 'ADVANCED FLANGER?'); // Power Chord, "some flanging"
+  eq(sub(5, 'pitch'), 'DUAL DETUNE'); // Mono Doubler
+  eq(sub(4, 'pitch'), 'INTELLIGENT 2 VOICE'); // Mono Harmony
+  eq(sub(15, 'pantrem'), 'SURROUND PAN.'); // pans beyond a normal stereo image
+  eq(sub(8, 'filters'), 'PHASER');
+  eq(sub(38, 'filters'), 'PARAMETRIC');
+  eq(sub(44, 'chorus'), 'ADVANCED FLANGER'); // Power Chord, "some flanging"
   eq(sub(9, 'drive'), ''); // no sub-algorithms
 });
 
@@ -309,14 +309,14 @@ test('modifier links: 20 × 10 bytes at 0x76, pedal presets have an Ext 1 link',
 
 test('single-block ROM presets 180–200 name their sub-algorithm', () => {
   const s = (n: number, block: string) => romPreset(n).subAlgo(ROUTED.find((b) => b.block === block)!);
-  eq(s(197, 'delay'), 'DUAL?'); // Two Delays, L 500 / R 400 ms
-  eq(s(200, 'delay'), 'QUAD-TAP?'); // 4 Tap Delay
+  eq(s(197, 'delay'), 'DUAL'); // Two Delays, L 500 / R 400 ms
+  eq(s(200, 'delay'), 'QUAD-TAP'); // 4 Tap Delay
   eq(s(198, 'delay'), 'ONE-TAP'); // Tape Delay
-  eq(s(194, 'pantrem'), 'PANNER?'); // Stereo Pan
-  eq(s(195, 'pantrem'), 'SURROUND PANNER?');
-  eq(s(188, 'chorus'), 'ADVANCED FLANGER?'); // Flanger Straight
-  eq(s(140, 'filters'), 'FORMANT?'); // "Stepped Formant Filter"
-  eq(s(173, 'filters'), 'RESONANCE?'); // "Resonance Filter"
+  eq(s(194, 'pantrem'), 'SIMPLE PANNER'); // Stereo Pan
+  eq(s(195, 'pantrem'), 'SURROUND PAN.');
+  eq(s(188, 'chorus'), 'ADVANCED FLANGER'); // Flanger Straight
+  eq(s(140, 'filters'), 'FORMANT'); // "Stepped Formant Filter"
+  eq(s(173, 'filters'), 'RESONANCE'); // "Resonance Filter"
 });
 
 test('single-block ROM pairs: Compressor knee, Noise Gate release and bypass', () => {
@@ -340,7 +340,7 @@ test('Compressor parameters read as on the unit (photo of ROM 203 Hard Compresso
   eq(show(203, 'compInLevel'), '0 dB');
   eq(show(203, 'compOutLevel'), '-5 dB');
   eq(show(202, 'compKnee'), 'Soft'); // Soft Compressor
-  eq(show(204, 'compRatio'), 'Inf:1?'); // Limiter: the top step, a guess
+  eq(show(204, 'compRatio'), 'Infinite:1'); // Limiter: the top step (card 2-1 photo)
   // A signed write round-trips and stores two's complement.
   const p = romPreset(203).clone();
   p.set(q('compThreshold'), -40);
@@ -352,8 +352,11 @@ test('Compressor parameters read as on the unit (photo of ROM 203 Hard Compresso
 
 test('GLOBAL parameters: Mix, In/Out Level and Mute Mode after each sub-algorithm byte', () => {
   const q = (id: string) => PARAMS.find((p) => p.id === id)!;
-  // One parameter per byte.
-  eq(new Set(PARAMS.map((p) => p.offset)).size, PARAMS.length);
+  // One parameter per byte within each block and sub-algorithm (sub-algorithms share bytes).
+  for (const b of BLOCKS) for (let sub = 0; sub < 8; sub++) {
+    const ps = PARAMS.filter((p) => p.block === b.id && (!p.subs || p.subs.includes(sub)));
+    eq(new Set(ps.map((p) => p.offset)).size, ps.length, `${b.id} sub ${sub}`);
+  }
   // Photo of ROM 7 (FILTER - WAH-WAH): MIX LEVEL 35 %, IN LEVEL 0 dB.
   eq(q('filtersMix').format(romPreset(7).get(q('filtersMix'))), '35 %');
   eq(q('filtersInLevel').format(romPreset(7).get(q('filtersInLevel'))), '0 dB');
@@ -370,7 +373,7 @@ test('GLOBAL parameters: Mix, In/Out Level and Mute Mode after each sub-algorith
     const pr = romPreset(n);
     for (const b of ROUTED) {
       if (!(pr.blockMask() & (1 << (b.code - ROUTED[0].code)))) continue;
-      for (const p of PARAMS.filter((x) => x.block === b.block)) {
+      for (const p of paramsFor(pr, b.block)) {
         const v = pr.get(p);
         eq(v >= p.min && v <= p.max, true, `ROM ${n} ${p.id} = ${v}`);
       }
@@ -378,11 +381,142 @@ test('GLOBAL parameters: Mix, In/Out Level and Mute Mode after each sub-algorith
   }
 });
 
+test('edit-parameters-1: ROM 1–3 with every parameter one step off read as the photos show', () => {
+  const ed = romDump('gforce-edit-parameters-1.syx');
+  const show = (n: number, id: string) => {
+    const q = PARAMS.find((p) => p.id === id)!;
+    return q.format(ed.preset(n - 1).get(q));
+  };
+  const photos: [number, Record<string, string>][] = [
+    [1, {
+      gateMode: 'Hard', gateThreshold: '-29 dB', gateDamping: '32 dB', gateRelease: '101 dB/s', gateLevel: '-5 dB',
+      compThreshold: '-5 dB', compRatio: '5.6:1', compInLevel: '-1 dB', compOutLevel: '-1 dB',
+      reverbRoomType: 'Curved', reverbRoomSize: 'Large', reverbDecay: '2.5 s', reverbLevel: '1', reverbHighColor: 'Crisp',
+      reverbHighFactor: '1', reverbLowColor: 'Light', reverbLowFactor: '1', reverbRoomLevel: '1', reverbColor: 'Wool',
+      reverbColFactor: '1', reverbPreDelay: '25', reverbDecayLevel: '1', reverbDecayStart: '1', reverbDiffuse: '1',
+      reverbMix: '29 %', reverbInLevel: '-1 dB', reverbOutLevel: '-1 dB', reverbMute: 'Input',
+    }],
+    [2, {
+      chorusSpeed: '0.188 Hz', chorusTempo: '1', chorusDepth: '52 %', chorusDelay: '11.4 ms', chorusGolden: 'Off', chorusPhaseRev: 'On', chorusCurve: 'Triangle', chorusPhase: '90',
+      chorusMix: '99 %', chorusInLevel: '-7 dB', chorusMute: 'Mix 0%',
+    }],
+    [3, {
+      delayTime: '311 ms', delayTempo: '1', delayFeedback: '25 %', delayPan: 'R1', delayLoCut: '10.8 Hz', delayHiCut: '14.9 kHz',
+      delayMix: '99 %', delayInLevel: '-1 dB', delayOutLevel: '-23 dB', delayMute: 'Output',
+    }],
+  ];
+  for (const [n, want] of photos) for (const [id, v] of Object.entries(want)) eq(show(n, id), v, `patch ${n} ${id}`);
+  // Every changed byte is accounted for: a decoded parameter, or one still to place (the
+  // Chorus Speed: a step table).
+  const pending: number[] = [];
+  for (let n = 1; n <= 3; n++) {
+    const a = romPreset(n), b = ed.preset(n - 1);
+    for (let off = PARAMS_AT; off < RECORD_SIZE; off++) {
+      if (a.byte(off) === b.byte(off)) continue;
+      const known = PARAMS.some((p) => paramApplies(p, b) && (p.offset === off || (p.width === 2 && p.offset + 1 === off)));
+      eq(known || pending.includes(off), true, `patch ${n} byte 0x${off.toString(16)}`);
+    }
+  }
+});
+
+test('edit-parameters-2: the Advanced Reverb with distinct values reads as the photos show', () => {
+  const ed = romDump('gforce-edit-parameters-2.syx');
+  const want: Record<string, string> = {
+    reverbRoomType: 'Square', reverbRoomSize: 'Box', reverbDecay: '2.5 s', reverbLevel: '2', reverbHighColor: 'Crisp',
+    reverbHighFactor: '3', reverbLowColor: 'NoBass', reverbLowFactor: '4', reverbRoomLevel: '5', reverbColor: 'Warm',
+    reverbColFactor: '6', reverbPreDelay: '25', reverbDecayLevel: '7', reverbDecayStart: '8', reverbDiffuse: '9',
+  };
+  for (const [id, v] of Object.entries(want)) {
+    const q = PARAMS.find((p) => p.id === id)!;
+    eq(q.format(ed.preset(0).get(q)), v, id);
+  }
+  // The Advanced Reverb's GENERAL page is complete: 0x253–0x261 are all decoded.
+  for (let off = 0x253; off <= 0x261; off++) eq(!!paramAt(off, ed.preset(0)), true, `0x${off.toString(16)}`);
+});
+
+test('ROM 11 photos: Classic Chorus, Simple Compressor, Fixed 1 Voice, Reverb names', () => {
+  const p = romPreset(11);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return paramApplies(q, p) ? q.format(p.get(q)) : '(absent)'; };
+  const sub = (block: string) => p.subAlgo(ROUTED.find((b) => b.block === block)!);
+  eq([sub('chorus'), sub('compress'), sub('pitch'), sub('reverb')], ['CLASSIC CHORUS', 'SIMPLE', 'FIXED 1 VOICE', 'ADVANCED']);
+  eq([show('chorusTempo'), show('chorusDepth'), show('chorusMix')], ['Ignored', '46 %', '100 %']);
+  // COMPRESS - SIMPLE shows Threshold and Ratio only: Knee Mode and Release are Advanced's.
+  eq([show('compThreshold'), show('compRatio'), show('compKnee'), show('compRelease'), show('compInLevel'), show('compOutLevel')],
+    ['-7 dB', '4.0:1', '(absent)', '(absent)', '0 dB', '0 dB']);
+  eq(show('pitchPitch'), '-1200 cent'); // FB 50, high byte first
+  eq([show('reverbRoomType'), show('reverbRoomSize'), show('reverbDecay'), show('reverbLevel'), show('reverbHighColor')],
+    ['Round', 'Medium', '2.4 s', '0', 'Bright']);
+});
+
+test('ROM 75 photos: Delay filters, Reverb room settings', () => {
+  const p = romPreset(75);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['delayLoCut', 'delayHiCut', 'delayMix', 'delayInLevel'].map(show), ['10.0 Hz', '14.9 kHz', '22 %', '0 dB']);
+  eq(['reverbLowFactor', 'reverbRoomLevel', 'reverbColor', 'reverbColFactor', 'reverbPreDelay'].map(show), ['10', '10', 'Glass', '50', '11']);
+});
+
+test('ROM 92 photos: Advanced Compressor, Reverb colors', () => {
+  const p = romPreset(92);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['compThreshold', 'compRatio', 'compKnee', 'compRelease'].map(show), ['-8 dB', '3.2:1', 'Soft', '61 dB/s']);
+  eq(['reverbLevel', 'reverbHighColor', 'reverbHighFactor', 'reverbLowColor', 'reverbLowFactor'].map(show), ['-3', 'Clear', '50', 'Thick', '28']);
+});
+
+test('ROM 101 photo: Simple Compressor, Ratio 1.80:1', () => {
+  const p = romPreset(101);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['compThreshold', 'compRatio', 'compInLevel', 'compOutLevel'].map(show), ['-13 dB', '1.80:1', '0 dB', '0 dB']);
+});
+
+test('ROM 139 photos: Ratio 1.40:1, Reverb colors and a 0.1 s decay', () => {
+  const p = romPreset(139);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['compThreshold', 'compRatio'].map(show), ['-8 dB', '1.40:1']);
+  eq(['reverbDecay', 'reverbLevel', 'reverbHighColor', 'reverbHighFactor', 'reverbLowColor', 'reverbLowFactor'].map(show),
+    ['0.1 s', '5', 'Warm', '13', 'Thick', '11']);
+  eq(['reverbRoomLevel', 'reverbColor', 'reverbColFactor'].map(show), ['10', 'Real', '7']);
+  eq(['reverbRoomType', 'reverbRoomSize'].map(show), ['Round', 'Tiny']);
+});
+
+test('ROM 141 photos: Ratio 1.60:1, Delay filters on the fitted table', () => {
+  const p = romPreset(141);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['compThreshold', 'compRatio', 'compKnee', 'compRelease'].map(show), ['-16 dB', '1.60:1', 'Soft', '55 dB/s']);
+  eq(['delayLoCut', 'delayHiCut', 'delayMix', 'delayInLevel'].map(show), ['114 Hz', '4.56 kHz', '32 %', '0 dB']);
+  // Every step photographed so far, through the same table.
+  const cut = PARAMS.find((x) => x.id === 'delayLoCut')!;
+  eq([0, 1, 33, 83, 99].map((v) => cut.format(v)), ['10.0 Hz', '10.8 Hz', '114 Hz', '4.56 kHz', '14.9 kHz']);
+});
+
+test('ROM 146 photos: Simple Panner, Reverb Color Crisp', () => {
+  const p = romPreset(146);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(p.subAlgo(ROUTED.find((b) => b.block === 'pantrem')!), 'SIMPLE PANNER');
+  eq(['pantremMix', 'pantremInLevel'].map(show), ['63 %', '0 dB']);
+  eq(['reverbLowFactor', 'reverbRoomLevel', 'reverbColor', 'reverbColFactor', 'reverbPreDelay'].map(show), ['0', '11', 'Crisp', '-36', '20']);
+});
+
+test('ROM 187 photo: Advanced Chorus speed 0.960 Hz; LFO speeds seen elsewhere', () => {
+  const p = romPreset(187);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['chorusSpeed', 'chorusTempo', 'chorusDepth', 'chorusDelay', 'chorusGolden'].map(show), ['0.960 Hz', 'Ignored', '6 %', '11.3 ms', 'Off']);
+  const one = (n: number, id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(romPreset(n).get(q)); };
+  eq([one(11, 'chorusSpeed'), one(146, 'pantremSpeed'), one(146, 'pantremTempo')], ['0.178 Hz', '0.640 Hz', 'Ignored']);
+  // Other steps are the curve's estimate, marked.
+  eq([0, 30, 77, 103].map((v) => PARAMS.find((x) => x.id === 'chorusSpeed')!.format(v)), ['0.050 Hz', '0.284 Hz', '4.29 Hz', '19.2 Hz']);
+});
+
+test('ROM 114 photo: Simple Compressor, Ratio 1.12:1', () => {
+  const p = romPreset(114);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['compThreshold', 'compRatio', 'compInLevel', 'compOutLevel'].map(show), ['0 dB', '1.12:1', '0 dB', '0 dB']);
+});
+
 test('values seen on the unit (photos) sit in their block', () => {
   const r7 = romBank.preset(6), r3 = romBank.preset(2);
   eq(r7.byte(0x17b), 35); // FILTER - WAH-WAH: MIX LEVEL 35 %
   eq(r7.byte(0x187), 45); // FREQ 0.45
-  eq(r3.byte(0x1e3) | (r3.byte(0x1e4) << 8), 310); // DELAY - ONE-TAP: TIME 310 ms
+  eq((r3.byte(0x1e2) << 8) | r3.byte(0x1e3), 310); // DELAY - ONE-TAP: TIME 310 ms, high byte first
   eq(r3.byte(0x1ee), 24); // FEEDBACK 24 %
 });
 
@@ -429,10 +563,10 @@ test('G-Card bank 1 links match the card manual\'s descriptions', () => {
   for (const n of pedal) eq(ids(n, 1).length > 0, true, `card 1-${n}`);
   // Sub-algorithms named in the descriptions.
   const sub = (n: number, block: string) => card1.preset(n - 1).subAlgo(ROUTED.find((b) => b.block === block)!);
-  eq(sub(59, 'delay'), 'QUAD-TAP?'); // "Quad Tap Delay"
-  eq(sub(18, 'delay'), 'DUAL?'); // "Tempo controls Dual Delay"
+  eq(sub(59, 'delay'), 'QUAD-TAP'); // "Quad Tap Delay"
+  eq(sub(18, 'delay'), 'DUAL'); // "Tempo controls Dual Delay"
   eq(sub(28, 'filters'), 'WAH-WAH'); // "Distorted Wah Wah"
-  eq(sub(36, 'pitch'), 'INTELLIGENT?'); // "E Dorian"
+  eq(sub(36, 'pitch'), 'INTELLIGENT 2 VOICE'); // "E Dorian"
 });
 
 test('G-Card banks 2 and 3: links named in the card manual\'s descriptions', () => {
@@ -460,6 +594,310 @@ test('G-Card banks 2 and 3: links named in the card manual\'s descriptions', () 
   for (const [b, n] of [[2, 98], [2, 99], [3, 8], [3, 10]]) eq(ids(b, n, EXT1).length, 0, `card ${b}-${n}`);
 });
 
+test('card 1-43 photos: every block of Tele Something Good', () => {
+  const p = cardPreset(1, 43);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  const sub = (block: string) => p.subAlgo(ROUTED.find((b) => b.block === block)!);
+  eq(['filters', 'pantrem', 'pitch', 'delay', 'chorus', 'compress', 'reverb'].map(sub),
+    ['PARAMETRIC', 'SIMPLE TREMOLO', 'DUAL DETUNE', 'DUAL', 'ADVANCED CHORUS', 'SIMPLE', 'ADVANCED']);
+  eq(['compThreshold', 'compRatio', 'compInLevel', 'compOutLevel'].map(show), ['-13 dB', '8.0:1', '0 dB', '-4 dB']);
+  eq(['pantremSpeed', 'pantremTempo', 'pantremDepth', 'pantremMix'].map(show), ['4.80 Hz', '1/8', '70 %', '100 %']);
+  eq(['pitchDetuneDelay1', 'pitchDetuneDelay2'].map(show), ['0 ms', '6 ms']);
+  eq(['delayDualTime1', 'delayDualTime2', 'delayDualTempo1', 'delayDualTempo2'].map(show), ['0 ms', '0 ms', '1/16', '1/8']);
+  eq(['chorusSpeed', 'chorusTempo', 'chorusDepth', 'chorusDelay', 'chorusGolden', 'chorusPhaseRev', 'chorusCurve', 'chorusPhase', 'chorusMix'].map(show),
+    ['0.112 Hz', 'Ignored', '75 %', '11.2 ms', 'On', 'On', 'Sine', '0', '50 %']);
+  eq(['reverbRoomType', 'reverbRoomSize', 'reverbDecay', 'reverbLevel', 'reverbHighColor', 'reverbHighFactor', 'reverbLowColor', 'reverbLowFactor'].map(show),
+    ['Curved', 'Small', '1.5 s', '0', 'Real', '0', 'Real', '0']);
+});
+
+test('cards 1-59 and 1-73 photos: Ratio OFF and 64:1', () => {
+  const show = (b: number, n: number, id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(cardPreset(b, n).get(q)); };
+  eq(['compThreshold', 'compRatio', 'compKnee', 'compRelease'].map((id) => show(1, 59, id)), ['-2 dB', 'Off', 'Soft', '40 dB/s']);
+  eq(['compThreshold', 'compRatio', 'compKnee', 'compRelease'].map((id) => show(1, 73, id)), ['-12 dB', '64:1', 'Hard', '23 dB/s']);
+});
+
+test('card 1-75 photos: Chorus tempo 1/4, Reverb Grand, Wool, Tight', () => {
+  const p = cardPreset(1, 75);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['chorusSpeed', 'chorusTempo', 'chorusDepth', 'chorusDelay', 'chorusGolden'].map(show), ['1.79 Hz', '1/4', '100 %', '11.3 ms', 'On']);
+  eq(['reverbRoomSize', 'reverbDecay', 'reverbLevel', 'reverbHighColor', 'reverbHighFactor', 'reverbLowColor'].map(show),
+    ['Grand', '10.0 s', '7', 'Wool', '41', 'Tight']);
+});
+
+test('card 1-76 photos: Phaser, Adv. Tremolo, Fixed 2 Voice, Stereo delay, Chorus LFO, Low Color Round', () => {
+  const p = cardPreset(1, 76);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  const sub = (block: string) => p.subAlgo(ROUTED.find((b) => b.block === block)!);
+  eq(['filters', 'pantrem', 'pitch', 'delay', 'chorus', 'compress', 'reverb'].map(sub),
+    ['PHASER', 'ADV. TREMOLO', 'FIXED 2 VOICE', 'STEREO', 'ADVANCED CHORUS', 'SIMPLE', 'ADVANCED']);
+  eq(['chorusSpeed', 'chorusTempo', 'chorusDepth', 'chorusDelay', 'chorusGolden', 'chorusPhaseRev', 'chorusCurve', 'chorusPhase', 'chorusMix'].map(show),
+    ['0.188 Hz', 'Ignored', '100 %', '11.3 ms', 'On', 'On', 'Sine', '180', '45 %']);
+  eq(['compThreshold', 'compRatio', 'compInLevel', 'compOutLevel'].map(show), ['-15 dB', '2.0:1', '0 dB', '0 dB']);
+  eq(['delayStereoTime', 'delayStereoTempo', 'delayStereoFeedback', 'delayStereoLoCut', 'delayStereoHiCut'].map(show),
+    ['400 ms', 'Ignored', '29 %', '10.0 Hz', '16.0 kHz']);
+  eq(['phaserSpeed', 'phaserTempo', 'phaserDepth', 'phaserOrder'].map(show), ['8.06 Hz', '1', '100 %', '4th']);
+  eq(['pantremSpeed', 'pantremTempo', 'pantremDepth', 'pantremCurve'].map(show), ['5.12 Hz', 'Ignored', '100 %', 'Square']);
+  eq(['pitchFixed2Voice1', 'pitchFixed2Voice2', 'pitchFixed2Delay1', 'pitchFixed2Delay2'].map(show), ['1200 cent', '-1200 cent', '400 ms', '400 ms']);
+  eq(['reverbLowColor', 'reverbLowFactor', 'reverbRoomLevel', 'reverbColor'].map(show), ['Round', '-30', '20', 'Auto']);
+});
+
+test('card 1-83 photos: Formant, Quad-tap, Simple Reverb, 16-bit Chorus Delay', () => {
+  const p = cardPreset(1, 83);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  const sub = (block: string) => p.subAlgo(ROUTED.find((b) => b.block === block)!);
+  eq(['filters', 'delay', 'chorus', 'compress', 'reverb'].map(sub), ['FORMANT', 'QUAD-TAP', 'ADVANCED CHORUS', 'SIMPLE', 'SIMPLE']);
+  eq(['chorusSpeed', 'chorusTempo', 'chorusDepth', 'chorusDelay', 'chorusGolden'].map(show), ['0.050 Hz', '1/2', '17 %', '45.0 ms', 'On']);
+  eq(['compThreshold', 'compRatio', 'compInLevel', 'compOutLevel'].map(show), ['-30 dB', '1.25:1', '0 dB', '0 dB']);
+  eq([1, 2, 3, 4].map((n) => show(`delayQuadTap${n}`)), ['505 ms', '375 ms', '325 ms', '225 ms']);
+  eq(['formantStart', 'formantThru', 'formantEnd', 'formantResonance', 'formantAgeSex'].map(show), ['But', 'Hit', 'Foot', '100 %', '65 %']);
+  eq(['reverbSimpleType', 'reverbSimpleDecay', 'reverbSimplePreDelay', 'reverbSimpleLevel', 'reverbSimpleColor'].map(show),
+    ['Spring', '18.6 s', '-50', '12', 'Wool']);
+  eq(paramsFor(p, 'reverb').slice(0, 5).map((q) => q.id), ['reverbSimpleType', 'reverbSimpleDecay', 'reverbSimplePreDelay', 'reverbSimpleLevel', 'reverbSimpleColor']);
+});
+
+test('card 1-89 photos: Adv. Flanger, Surround Panner, Advanced Compressor and Reverb', () => {
+  const p = cardPreset(1, 89);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  const sub = (block: string) => p.subAlgo(ROUTED.find((b) => b.block === block)!);
+  eq(['pantrem', 'delay', 'chorus', 'compress', 'reverb'].map(sub), ['SURROUND PAN.', 'ONE-TAP', 'ADVANCED FLANGER', 'ADVANCED', 'ADVANCED']);
+  eq(['chorusSpeed', 'chorusTempo', 'chorusDepth', 'flangerFeedback', 'flangerCrossFeed'].map(show), ['0.089 Hz', '1/2', '40 %', '-23 %', '13 %']);
+  eq(['compThreshold', 'compRatio', 'compKnee', 'compRelease'].map(show), ['-15 dB', '2.5:1', 'Hard', '37 dB/s']);
+  eq(['delayLoCut', 'delayHiCut', 'delayMix', 'delayInLevel'].map(show), ['10.0 Hz', '16.0 kHz', '100 %', '0 dB']);
+  eq(['pantremSpeed', 'pantremTempo', 'pantremSurroundCurve', 'pantremSurroundPulse'].map(show), ['0.848 Hz', '1', 'Sine', '50 %']);
+  eq(['reverbRoomLevel', 'reverbColor', 'reverbColFactor', 'reverbPreDelay', 'reverbDecayLevel'].map(show), ['12', 'Bright', '35', '50', '4']);
+  eq(['reverbDecay', 'reverbLevel', 'reverbHighColor', 'reverbHighFactor', 'reverbLowColor', 'reverbLowFactor'].map(show),
+    ['2.2 s', '8', 'Glass', '27', 'Thin', '19']);
+});
+
+test('card 2-1 photos: Resonance filter, Intelligent pitch, Infinite ratio', () => {
+  const p = cardPreset(2, 1);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  const sub = (block: string) => p.subAlgo(ROUTED.find((b) => b.block === block)!);
+  eq(['filters', 'pitch', 'delay', 'compress'].map(sub), ['RESONANCE', 'INTELLIGENT 2 VOICE', 'ONE-TAP', 'SIMPLE']);
+  eq(['compThreshold', 'compRatio'].map(show), ['-10 dB', 'Infinite:1']);
+  eq(['delayLoCut', 'delayHiCut', 'delayMix', 'delayInLevel'].map(show), ['10.0 Hz', '3.16 kHz', '18 %', '0 dB']);
+  eq(['resonanceType', 'resonanceLoFreq', 'resonanceHiFreq', 'resonanceLoReson'].map(show), ['2nd Order', '20.0 Hz', '15.0 kHz', '100 %']);
+  eq(['pitchIntKey', 'pitchIntScale', 'pitchIntMode', 'pitchIntVoice1'].map(show), ['C', 'Ionian Maj.', 'Stepping', '8']);
+  const q = cardPreset(1, 36); // "E Dorian"
+  eq(['pitchIntKey', 'pitchIntScale'].map((id) => { const d = PARAMS.find((x) => x.id === id)!; return d.format(q.get(d)); }), ['E?', 'Dorian?']);
+});
+
+test('card 2-12 photo: One-tap cut filters 298 Hz and 3.66 kHz, In Level under a modifier', () => {
+  const p = cardPreset(2, 12);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['delayLoCut', 'delayHiCut', 'delayMix', 'delayInLevel'].map(show), ['298 Hz', '3.66 kHz', '58 %', '-15 dB']);
+});
+
+test('card 2-40 photos: One-tap Tempo 1/4, Locut 106 Hz, Mix under a modifier', () => {
+  const p = cardPreset(2, 40);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['delayTime', 'delayTempo', 'delayFeedback', 'delayPan', 'delayLoCut', 'delayHiCut', 'delayMix', 'delayInLevel'].map(show),
+    ['805 ms', '1/4', '42 %', '0', '106 Hz', '3.66 kHz', '16 %', '0 dB']);
+});
+
+test('■ marks linked parameters: cards 2-12 (In Level), 2-40 (Mix), 2-1 (Resonance frequencies)', () => {
+  const linked = (b: number, n: number) => PARAMS.filter((q) => paramApplies(q, cardPreset(b, n)) && cardPreset(b, n).linked(q)).map((q) => q.id);
+  eq(linked(2, 12).filter((id) => id.startsWith('delay')), ['delayInLevel']);
+  eq(linked(2, 40), ['delayMix']);
+  eq(linked(2, 1).filter((id) => id.startsWith('resonance')), ['resonanceLoFreq', 'resonanceHiFreq']);
+  eq(ROUTED.filter((r) => r.block !== 'drive').every((r) => PARAMS.find((q) => q.id === `${r.block}Mute`) && (r.block === 'compress' || PARAMS.find((q) => q.id === `${r.block}Mix`)!.link === 1000 * (r.code - 3))), true);
+});
+
+test('card 2-44 photo: Locut 16.0 kHz, Hicut 464 Hz, Pan R9, nothing linked', () => {
+  const p = cardPreset(2, 44);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['delayPan', 'delayLoCut', 'delayHiCut', 'delayMix'].map(show), ['R9', '16.0 kHz', '464 Hz', '2 %']);
+  eq(p.linkTargets().size, 0);
+});
+
+test('card 2-45 photos: Ratio 32:1, Delay Dual Two-tap line 1', () => {
+  const p = cardPreset(2, 45);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(p.subAlgo(ROUTED.find((b) => b.block === 'delay')!), 'DUAL TWO-TAP');
+  eq(['compThreshold', 'compRatio', 'compKnee', 'compRelease'].map(show), ['-30 dB', '32:1', 'Hard', '10 dB/s']);
+  eq(['delay2TapTime1', 'delay2TapTime2', 'delay2TapTempo1', 'delay2TapTempo2', 'delay2TapFeedback1'].map(show), ['600 ms', '600 ms', '1/4', '1/4', '25 %']);
+});
+
+test('card 2-62 photo: Locut 85.0 Hz (step 29), cut filters 10 Hz × 1600^(n/100)', () => {
+  const p = cardPreset(2, 62);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['delayPan', 'delayLoCut', 'delayHiCut', 'delayMix'].map(show), ['0', '85.0 Hz', '16.0 kHz', '14 %']);
+  const cut = PARAMS.find((x) => x.id === 'delayLoCut')!;
+  const seen: [number, string][] = [[0, '10.0 Hz'], [1, '10.8 Hz'], [29, '85.0 Hz'], [32, '106 Hz'], [33, '114 Hz'], [46, '298 Hz'], [52, '464 Hz'],
+    [78, '3.16 kHz'], [80, '3.66 kHz'], [83, '4.56 kHz'], [99, '14.9 kHz'], [100, '16.0 kHz']];
+  eq(seen.map(([n]) => cut.format(n)), seen.map(([, s]) => s));
+});
+
+test('card 2-89 photos: Classic Flanger, linked Delay Pan, Reverb XL and Clear', () => {
+  const p = cardPreset(2, 89);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(p.subAlgo(ROUTED.find((b) => b.block === 'chorus')!), 'CLASSIC FLANGER');
+  eq(['chorusSpeed', 'chorusTempo', 'chorusDepth', 'flangerFeedback'].map(show), ['0.168 Hz', 'Ignored', '40 %', '36 %']);
+  eq(['delayPan', 'delayLoCut', 'delayHiCut', 'delayMix'].map(show), ['0', '178 Hz', '6.13 kHz', '100 %']);
+  eq(p.linked(PARAMS.find((x) => x.id === 'delayPan')!), true);
+  eq(['reverbRoomType', 'reverbRoomSize', 'reverbDecay', 'reverbLevel', 'reverbHighColor'].map(show), ['Curved', 'XL', '6.1 s', '0', 'Real']);
+  eq(['reverbRoomLevel', 'reverbColor', 'reverbColFactor', 'reverbPreDelay', 'reverbDecayLevel'].map(show), ['8', 'Clear', '50', '0', '3']);
+});
+
+test('cards 3-36 and 3-41 photos: Chorus speeds 5.12 and 0.336 Hz', () => {
+  const show = (n: number, id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(cardPreset(3, n).get(q)); };
+  const ids = ['chorusSpeed', 'chorusTempo', 'chorusDepth', 'chorusDelay', 'chorusGolden'];
+  eq(ids.map((id) => show(36, id)), ['5.12 Hz', 'Ignored', '100 %', '0.1 ms', 'Off']);
+  eq(ids.map((id) => show(41, id)), ['0.336 Hz', 'Ignored', '12 %', '0.1 ms', 'On']);
+});
+
+test('ROM 8 photo: Phaser Order 8TH, Speed 0.504 Hz', () => {
+  const p = romPreset(8);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['phaserSpeed', 'phaserTempo', 'phaserDepth', 'phaserOrder'].map(show), ['0.504 Hz', 'Ignored', '90 %', '8th']);
+});
+
+test('ROM 66 photo: Phaser Order 12TH, Speed and Depth under modifiers (2500, 2502)', () => {
+  const p = romPreset(66);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['phaserSpeed', 'phaserTempo', 'phaserDepth', 'phaserOrder'].map(show), ['0.424 Hz', 'Ignored', '100 %', '12th']);
+  eq(['phaserSpeed', 'phaserTempo', 'phaserDepth', 'phaserOrder'].map((id) => p.linked(PARAMS.find((x) => x.id === id)!)), [true, false, true, false]);
+});
+
+test('ROM 196 photo: Stereo Delay Tempo 1/4 at 0x1E4', () => {
+  const p = romPreset(196);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['delayStereoTime', 'delayStereoTempo', 'delayStereoFeedback', 'delayStereoLoCut', 'delayStereoHiCut'].map(show), ['500 ms', '1/4', '35 %', '10.0 Hz', '16.0 kHz']);
+});
+
+test('card 2-22 photo: Stereo Delay Tempo 1/32 = 9', () => {
+  const p = cardPreset(2, 22);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['delayStereoTime', 'delayStereoTempo', 'delayStereoFeedback', 'delayStereoLoCut', 'delayStereoHiCut'].map(show), ['316 ms', '1/32', '50 %', '10.0 Hz', '16.0 kHz']);
+});
+
+test('card 2-24 photo: Stereo Delay Tempo 1/8. (dotted) = 4, cut filters 63.2 Hz and 4.24 kHz', () => {
+  const p = cardPreset(2, 24);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['delayStereoTime', 'delayStereoTempo', 'delayStereoFeedback', 'delayStereoLoCut', 'delayStereoHiCut'].map(show), ['322 ms', '1/8.', '69 %', '63.2 Hz', '4.24 kHz']);
+});
+
+test('card 1-78 photos: vowels HEAT, HAD, ALL; Simple Reverb CLUB, REAL', () => {
+  const p = cardPreset(1, 78);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['formantStart', 'formantThru', 'formantEnd', 'formantResonance', 'formantAgeSex'].map(show), ['Heat', 'Had', 'All', '0 %', '49 %']);
+  eq(['reverbSimpleType', 'reverbSimpleDecay', 'reverbSimplePreDelay', 'reverbSimpleLevel', 'reverbSimpleColor'].map(show), ['Club', '18.9 s', '100', '8', 'Real']);
+});
+
+test('ROM 157 photos: vowels FATHER, BOOT, BIRD; Dual Two-tap lines in byte order', () => {
+  const p = romPreset(157);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['formantStart', 'formantThru', 'formantEnd', 'formantResonance', 'formantAgeSex'].map(show), ['Father', 'Boot', 'Bird', '0 %', '70 %']);
+  eq(['delay2TapTime1', 'delay2TapTime2', 'delay2TapTempo1', 'delay2TapTempo2', 'delay2TapFeedback1'].map(show), ['200 ms', '300 ms', 'Ignored', 'Ignored', '0 %']);
+  eq(['delay2TapL2Time1', 'delay2TapL2Time2', 'delay2TapL2Tempo1', 'delay2TapL2Tempo2', 'delay2TapL2Feedback1'].map(show), ['500 ms', '600 ms', 'Ignored', 'Ignored', '18 %']);
+});
+
+test('ROM 176 photo: vowel HEAD = 2, all ten vowels named', () => {
+  const p = romPreset(176);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['formantStart', 'formantThru', 'formantEnd', 'formantResonance', 'formantAgeSex'].map(show), ['Head', 'Hit', 'Father', '1 %', '0 %']);
+  const start = PARAMS.find((x) => x.id === 'formantStart')!;
+  eq([0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((v) => start.format(v)), ['Heat', 'Hit', 'Head', 'Had', 'But', 'Father', 'All', 'Boot', 'Foot', 'Bird']);
+});
+
+test('ROM 180 photo: Simple Reverb ROOM, BRIGHT', () => {
+  const p = romPreset(180);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['reverbSimpleType', 'reverbSimpleDecay', 'reverbSimplePreDelay', 'reverbSimpleLevel', 'reverbSimpleColor'].map(show), ['Room', '1.2 s', '0', '-4', 'Bright']);
+});
+
+test('ROM 181 photo: Simple Reverb CHURCH, CLEAR', () => {
+  const p = romPreset(181);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['reverbSimpleType', 'reverbSimpleDecay', 'reverbSimplePreDelay', 'reverbSimpleLevel', 'reverbSimpleColor'].map(show), ['Church', '2.0 s', '0', '-4', 'Clear']);
+});
+
+test('ROM 182 photo: Simple Reverb GRAND HALL', () => {
+  const p = romPreset(182);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['reverbSimpleType', 'reverbSimpleDecay', 'reverbSimplePreDelay', 'reverbSimpleLevel', 'reverbSimpleColor'].map(show), ['Grand Hall', '3.0 s', '0', '-3', 'Clear']);
+});
+
+test('ROM 183 photo: Simple Reverb CATHEDRAL', () => {
+  const p = romPreset(183);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['reverbSimpleType', 'reverbSimpleDecay', 'reverbSimplePreDelay', 'reverbSimpleLevel', 'reverbSimpleColor'].map(show), ['Cathedral', '6.0 s', '0', '-3', 'Real']);
+});
+
+test('ROM 185 photo: Simple Reverb SLOW DECAY, GLASS', () => {
+  const p = romPreset(185);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['reverbSimpleType', 'reverbSimpleDecay', 'reverbSimplePreDelay', 'reverbSimpleLevel', 'reverbSimpleColor'].map(show), ['Slow Decay', '2.6 s', '0', '-4', 'Glass']);
+});
+
+test('card 1-40 photo: Simple Reverb FAST DECAY', () => {
+  const p = cardPreset(1, 40);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['reverbSimpleType', 'reverbSimpleDecay', 'reverbSimplePreDelay', 'reverbSimpleLevel', 'reverbSimpleColor'].map(show), ['Fast Decay', '2.5 s', '0', '0', 'Real']);
+});
+
+test('card 1-44 photo: Simple Reverb PLATE, WARM', () => {
+  const p = cardPreset(1, 44);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['reverbSimpleType', 'reverbSimpleDecay', 'reverbSimplePreDelay', 'reverbSimpleLevel', 'reverbSimpleColor'].map(show), ['Plate', '1.0 s', '-23', '8', 'Warm']);
+});
+
+test('card 1-46 photo: Simple Reverb HALL, all ten types named', () => {
+  const p = cardPreset(1, 46);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['reverbSimpleType', 'reverbSimpleDecay', 'reverbSimplePreDelay', 'reverbSimpleLevel', 'reverbSimpleColor'].map(show), ['Hall', '2.5 s', '0', '0', 'Real']);
+  const type = PARAMS.find((x) => x.id === 'reverbSimpleType')!;
+  eq([0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((v) => type.format(v)).some((n) => n.endsWith('?')), false);
+});
+
+test('card 1-97 photos: Resonance bytes (Lo Reson 0x188, Hicut 0x189) and sweeps, Simple Reverb EXTREME', () => {
+  const p = cardPreset(1, 97);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['resonanceType', 'resonanceLoFreq', 'resonanceHiFreq', 'resonanceLoReson'].map(show), ['2nd Order', '88.8 Hz', '5.20 kHz', '45 %']);
+  eq(p.linkTargets().size, 0);
+  eq(['reverbSimpleType', 'reverbSimpleDecay', 'reverbSimplePreDelay', 'reverbSimpleLevel', 'reverbSimpleColor'].map(show), ['Plate', '2.4 s', '-50', '11', 'Extreme']);
+});
+
+test('Formant links: Age/Sex 2413 marked on ROMs 157 and 176, Resonance 2415 unmarked', () => {
+  const ids = (p: Preset) => ['formantResonance', 'formantAgeSex'].map((id) => p.linked(PARAMS.find((x) => x.id === id)!));
+  eq(ids(romPreset(157)), [false, true]);
+  eq(ids(romPreset(176)), [false, true]);
+});
+
+test('card 2-2 photos: Resonance 4TH ORDER, 182 Hz, 3.77 kHz as predicted; Simple Reverb CRISP', () => {
+  const p = cardPreset(2, 2);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['resonanceType', 'resonanceLoFreq', 'resonanceHiFreq', 'resonanceLoReson'].map(show), ['4th Order', '182 Hz', '3.77 kHz', '50 %']);
+  eq(['reverbSimpleType', 'reverbSimpleDecay', 'reverbSimplePreDelay', 'reverbSimpleLevel', 'reverbSimpleColor'].map(show), ['Plate', '2.2 s', '0', '-7', 'Crisp']);
+});
+
+test('edit-parameters-3: ROM 2 Chorus SPEED 103 = 19.2 Hz (the top), TEMPO 11 = 1/2.', () => {
+  const a = romDump('gforce-edit-parameters-2.syx').preset(1), b = romDump('gforce-edit-parameters-3.syx').preset(1);
+  const diff: number[] = [];
+  for (let o = PARAMS_AT; o < RECORD_SIZE; o++) if (a.byte(o) !== b.byte(o)) diff.push(o);
+  eq(diff, [0x23a, 0x23b]);
+  const speed = PARAMS.find((x) => x.id === 'chorusSpeed')!;
+  eq(speed.format(b.get(speed)), '19.2 Hz');
+  const tempo = PARAMS.find((x) => x.id === 'chorusTempo')!;
+  eq(tempo.format(b.get(tempo)), '1/2.'); // photo: 1/2. with 0.66 Hz under the bar
+});
+
+test('edit-parameters-4: one Chorus per remaining tempo, so every Tempo byte is named', () => {
+  const bank = romDump('gforce-edit-parameters-4.syx');
+  const tempo = PARAMS.find((x) => x.id === 'chorusTempo')!;
+  eq([0, 1, 2, 3, 4, 5, 6, 7].map((n) => tempo.format(bank.preset(n).get(tempo))), ['1/2T', '1/4.', '1/4T', '1/16.', '1/8T', '1/16T', '1/32.', '1/32T']);
+  eq(Array.from({ length: 17 }, (_, v) => tempo.format(v)).some((n) => n.includes('?')), false);
+  const speed = PARAMS.find((x) => x.id === 'chorusSpeed')!;
+  eq([bank.preset(8).byte(0x23a), speed.format(bank.preset(8).get(speed))], [255, 'Off']); // User 9: SPEED OFF
+});
+
+test('ROM 173 photo: Resonance 492 Hz, ■9.04 kHz, 31 %, 70 % as predicted', () => {
+  const p = romPreset(173);
+  const show = (id: string) => { const q = PARAMS.find((x) => x.id === id)!; return q.format(p.get(q)); };
+  eq(['resonanceLoFreq', 'resonanceHiFreq', 'resonanceLoReson', 'resonanceHiReson', 'filtersMix'].map(show), ['492 Hz', '9.04 kHz', '31 %', '70 %', '50 %']);
+  eq(['resonanceLoFreq', 'resonanceHiFreq'].map((id) => p.linked(PARAMS.find((x) => x.id === id)!)), [false, true]);
+});
+
 test('G-Card: every value in range for the blocks each preset routes, block thousands hold', () => {
   for (let b = 1; b <= 3; b++) {
     for (let n = 1; n <= GCARD_NAMES[b - 1].length; n++) {
@@ -470,7 +908,7 @@ test('G-Card: every value in range for the blocks each preset routes, block thou
       }
       for (const r of ROUTED) {
         if (!(pr.blockMask() & (1 << (r.code - ROUTED[0].code)))) continue;
-        for (const p of PARAMS.filter((x) => x.block === r.block)) {
+        for (const p of paramsFor(pr, r.block)) {
           const v = pr.get(p);
           eq(v >= p.min && v <= p.max, true, `card ${b}-${n} ${p.id} = ${v}`);
         }

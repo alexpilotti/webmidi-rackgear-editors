@@ -105,7 +105,7 @@ export function paramPage(lcd: GraphicLcd, o: {
   lcd.clear();
   lcd.frame(0, 0, 168, 14);
   lcd.frame(1, 1, 166, 12);
-  lcd.text(4, 4, o.title.slice(0, 26));
+  lcd.text(4, 4, o.title.slice(0, 27));
   lcd.fill(172, 0, 68, 14);
   lcd.text(206, 4, o.tab, { on: false, right: false, scale: 1 });
   lcd.dotted(0, LCD_W - 1, 17);
@@ -127,8 +127,11 @@ export function paramPage(lcd: GraphicLcd, o: {
       continue;
     }
     if (top + r === o.cursor) lcd.text(8, y, '▶');
-    lcd.text(15, y, row.label.slice(0, 13));
-    if (row.value) lcd.text(154, y, row.value.slice(0, 9), { right: true });
+    // The value takes what it needs (up to 11 characters, e.g. -1200 CENT, plus ■ when a modifier moves it).
+    const value = (row.value ?? '').slice(0, row.value?.startsWith('■') ? 12 : 11);
+    const room = Math.floor((154 - 15 - GraphicLcd.measure(value) - 6) / 6);
+    lcd.text(15, y, row.label.slice(0, Math.max(6, room)));
+    if (value) lcd.text(154, y, value, { right: true });
   }
 
   // Bar graph for the selected value.
@@ -140,7 +143,7 @@ export function paramPage(lcd: GraphicLcd, o: {
     else lines.push(w);
   }
   lines.slice(0, 2).forEach((l, i) => lcd.text(LCD_W - 2, 21 + i * 9, l, { right: true }));
-  const bx = 196, by = 42, bw = 16, bh = 55;
+  const bx = 196, by = 40, bw = 16, bh = 46; // leaves a line under the bar for the value
   for (let t = 0; t < 5; t++) lcd.fill(bx - 6, by + Math.round((t * (bh - 1)) / 4), 3, 1);
   lcd.frame(bx, by, bw, bh);
   if (o.bar !== null) {
@@ -148,7 +151,7 @@ export function paramPage(lcd: GraphicLcd, o: {
     const hgt = Math.round(f * (bh - 4));
     lcd.fill(bx + 2, by + bh - 2 - hgt, bw - 4, hgt);
   }
-  if (o.barNote) lcd.text(LCD_W - 2, 90, o.barNote, { right: true });
+  if (o.barNote) lcd.text(LCD_W - 2, 91, o.barNote.slice(0, 12), { right: true });
 }
 
 /** Big title, a few lines of text, and an optional progress bar. */

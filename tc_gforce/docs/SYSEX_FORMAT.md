@@ -19,6 +19,10 @@ worked out from dumps of a real unit (`samples/`), sent with
 | `gforce-g-card-1.syx` | TC G-Card bank 1 (100 presets) copied unedited to User 1–100. 19 names differ from the card manual: its typos ("Rhyhmic", "Psycheledic"), names cut to 20 characters ("Subtle Jazz RevDelay", "Pedal Maj-Min"), case and punctuation |
 | `gforce-g-card-2.syx` | G-Card bank 2 (100 presets) copied unedited to User 1–100. 5 names differ from the card manual ("Corrines" is "Corinnes" on the card, the rest case and punctuation) |
 | `gforce-g-card-3.syx` | G-Card bank 3 (45 presets) copied unedited to User 1–45. All names as in the card manual |
+| `gforce-edit-parameters-1.syx` | ROM 1–3 with every parameter moved one step, photographed on the unit: 1 Mono Reverb (Input, Compressor, Reverb, Output), 2 Mono Chorus (Chorus), 3 Mono Dyn Delay (Delay). Each changed byte is one parameter; see PARAMETERS.md |
+| `gforce-edit-parameters-2.syx` | As edit-parameters-1, with ROM 1's Advanced Reverb set to distinct values (REVERB LEVEL 2 … DIFFUSE 9, ROOM TYPE SQUARE, ROOM SIZE BOX, LOW COLOR NOBASS, COLOR WARM), to place the bytes edit-parameters-1 moved together |
+| `gforce-edit-parameters-3.syx` | As edit-parameters-2, with ROM 2's Chorus SPEED at the top (19.2 Hz) and TEMPO changed: only 0x23A (23 → 103) and 0x23B (1 → 11) differ. SPEED 103 = 19.2 Hz ends the LFO table. TEMPO 11 = 1/2. (photo: 0.66 Hz under the bar; 1/2 is byte 2) |
+| `gforce-edit-parameters-4.syx` | User 1–8: ROM 2's Advanced Chorus, each with a different TEMPO, in order 1/2T, 1/4., 1/4T, 1/16., 1/8T, 1/16T, 1/32., 1/32T: bytes 13, 12, 14, 6, 15, 16, 8, 10 at 0x23B. With the photos, all 17 Tempo bytes are known. User 9 (added later): SPEED OFF, stored as FF (-1) at 0x23A |
 
 A first capture with an empty User bank sent only the header message, with a
 block count of `02` (its data blocks were not recorded).
@@ -101,17 +105,17 @@ the unit, with its box name: 4 CPR, 5 FIL, 6 PAN, 7 PIT, 8 DLY, 9 DRV, 10 CHO,
 | `0x016` | 2 | `03 00` in 220 of 225 ROM presets; `01 00` in 92, 175, 176 and both Noise Gate presets (223, 224), and in 10 of G-Card bank 1, mostly fuzz presets (1-70 FuzzFadeIn, 1-71 FuzzWahPedal, 1-72 Fuzz Funn, 1-94). *Guess:* bit 1 set = Noise Gate off (225 Empty Routing has 3) | single-block Noise Gate presets |
 | `0x018` | 8 × 2 | one value 0–3 per block, at even offsets, in block-ID order (Comp … Reverb). *Unknown*; not the sub-algorithm (Comp reaches 3). Set for blocks that are not routed too | varies with the preset |
 | `0x028` | 32 | **routing grid**, 8 columns × 4 rows, column by column: cell = `0x28 + 4·column + row` | see below |
-| `0x048` | 10 | *Guess:* In section / Noise Gate. `0x49` signed −60 … −14 (Threshold dB?), `0x4A` 0–50 (Max. Damping dB?), `0x4B` 3–100 = **Release rate** (15 in 223 Slow Noise Gate, 100 in 224 Fast Noise Gate), `0x48`, `0x4C` 0/1 (Mode?), `0x4D` signed 0 … −9 (Level dB?); `0x4E` = 100, 75 in 16 presets | ranges over ROM 1–225; 223 vs 224 |
+| `0x048` | 10 | **In section / Noise Gate** (edit-parameters-1): `0x48` MODE (0 Soft, 1 Hard), `0x49` THRESHOLD dB signed, `0x4A` MAX DAMPING dB, `0x4B` REL.RATE dB/s, `0x4D` LEVEL dB signed. `0x4C` (0/1) unknown; `0x4E` = 100, 75 in some presets | edit-parameters-1, 223 vs 224 |
 | `0x076` | 200 | **modifier matrix**: 20 links of 10 bytes (the manual's maximum is 20), see below. Unused links are zeros | every pedal preset has links |
 | `0x140` | ~38 | *Guess:* global or In/Out section; mostly constant | |
 | `0x166` | 20 | **Compressor**; `0x166` = sub-algorithm (0 Simple, **1 = ADVANCED**, photo of ROM 203). Confirmed by that photo: `0x172` = **THRESHOLD** dB, signed (−17 = `EF`), `0x173` = **RATIO** step (12 = 16:1), `0x174` = **RELEASE** dB/s (18), `0x175` = **KNEE MODE** (0 Soft, 1 Hard), `0x168` = **IN LEVEL** dB, signed (0), `0x169` = **OUT LEVEL** dB, signed (−5 = `FB`). 202 Soft Compressor has knee 0; 204 Limiter has ratio 15, *guess:* ∞ | ROM 203 photo; 202–204 |
 | `0x17A` | 34 | **Filters**; `0x17A` = sub-algorithm: **2 = WAH-WAH** (photo, ROM 7); from the preset list 0 Parametric EQ (38 Go Direct "EQ"), 1 Resonance (173 "Resonance Filter"), 3 Formant (140 "Stepped Formant Filter", the talk-box presets), 4 Phaser (every Phaser preset). Not the manual's order. `0x17B` = MIX LEVEL % (35, photo), `0x187` = Wah FREQ ×100 (45 = 0.45, photo) | ROM 7 photo, preset list |
-| `0x19C` | 22 | **Pan+Trem**; `0x19C` = sub-algorithm: 2 Panner (194 Stereo Pan), 3 Surround Panner (195 Surround Panner, 15 Wide Panner, the rotary presets), 1 in all three single-block Tremolos (191–193; Classic, Stereo, Square), 0 in 6 Mono Tremolo | single-block presets |
+| `0x19C` | 22 | **Pan+Trem**; `0x19C` = sub-algorithm: **2 = SIMPLE PANNER** (photo, ROM 146); from the preset list 3 Surround Panner (195 Surround Panner, 15 Wide Panner, the rotary presets), 1 in all three single-block Tremolos (191–193), 0 in 6 Mono Tremolo. Simple Panner: `0x1A8` SPEED step (44 = 0.640 Hz), `0x1A9` TEMPO (0 = IGNORED) | ROM 146 photo, single-block presets |
 | `0x1B2` | 36 | **Pitch**; `0x1B2` = sub-algorithm: 0 Intelligent (Harmony presets), 1 one voice (11/25 "lower octave", 33 "octave up"), 2 two voices, 3 Detune (all Doubler presets) | |
-| `0x1D6` | ~50 | **Delay**; `0x1D6` = sub-algorithm: **4 = ONE-TAP** (photo, ROM 3; also 198 Tape Delay); from the preset list 1 Dual (197 "Two Delays" L 500 / R 400 ms, 199 Ping-Pong), 2 Dual Two-tap (29 Slap+Slow), 3 Quad-tap (200 "4 Tap Delay", 147 Expandelay "first four repeats"), 0 likely Stereo (196, one 500 ms Delay). One-Tap: `0x1E3` = TIME, 16-bit little-endian ms (`36 01` = 310, photo), `0x1EE` = FEEDBACK % (24, photo). `0x1E5`, `0x1E7`, `0x1E9` hold further 16-bit times, likely the other taps' | ROM 3 photo, preset list |
+| `0x1D6` | ~50 | **Delay**; `0x1D6` = sub-algorithm: **4 = ONE-TAP** (photo, ROM 3; also 198 Tape Delay); from the preset list 1 Dual (197 "Two Delays" L 500 / R 400 ms, 199 Ping-Pong), 2 Dual Two-tap (29 Slap+Slow), 3 Quad-tap (200 "4 Tap Delay", 147 Expandelay "first four repeats"), 0 likely Stereo (196, one 500 ms Delay). One-tap (edit-parameters-1 confirms each): `0x1E2` TIME, 16-bit high byte first, ms; `0x1EA` TEMPO; `0x1EE` FEEDBACK %; `0x1F6` PAN signed (R1 = 1); `0x1FA` LOCUT step; `0x1FE` HICUT step. The fields come in fours, one per Quad-tap tap: times at `0x1E2`, `0x1E4`, `0x1E6`, `0x1E8` (310, 300, 350, 400 ms on ROM 3), tempos from `0x1EA`, feedbacks from `0x1EE`, levels from `0x1F2`, pans from `0x1F6`, locuts from `0x1FA`, hicuts from `0x1FE` | ROM 3 photo, preset list |
 | `0x208` | ~38 | **Drive** (no sub-algorithms); 220–222 Drive 1–3 differ in `0x20B` (signed, −14 / −12 / −16), `0x214`, `0x215`, `0x216` and `0x218`, which also vary only in presets that route the Drive | 220–222 |
 | `0x22E` | 24 | **Chorus/Flanger**; `0x22E` = sub-algorithm: 1 in the straight Chorus presets (186, 187, 190 Vibrato), 3 in the Flanger presets (188, 189, 44, the flanging presets). *Guess:* manual order (0 Classic Chorus, 1 Advanced Chorus, 2 Classic Flanger, 3 Advanced Flanger) | preset list |
-| `0x246` | 32 | **Reverb**; `0x246` = sub-algorithm, 1 = Advanced (photo of Mono Reverb). 0 only in the six single-block Reverbs 180–185 where the Reverb is routed, *guess:* Simple. `0x253` = DECAY TIME | |
+| `0x246` | 32 | **Reverb**; `0x246` = sub-algorithm, 1 = Advanced (photo of Mono Reverb). 0 only in the six single-block Reverbs 180–185 where the Reverb is routed, *guess:* Simple. Advanced: `0x253` DECAY TIME, `0x254` DECAY LEVEL, `0x255` HIGH COLOR, `0x256` HIGH FACTOR, `0x257` LOW COLOR, `0x258` LOW FACTOR, `0x259` DECAY START, `0x25A` DIFFUSE, `0x25B` ROOM TYPE, `0x25C` ROOM SIZE, `0x25D` ROOM LEVEL, `0x25E` COLOR, `0x25F` COL.FACTOR, `0x260` PRE DELAY, `0x261` REVERB LEVEL | edit-parameters-1, edit-parameters-2 |
 
 **Block start.** Each block's data opens with the same six bytes (the unit's
 GLOBAL section): +0 sub-algorithm, +1 Mix Level, +2 In Level, +3 Out Level
@@ -161,6 +165,19 @@ Delays use; 5001 is what 10 Mono Pedal Delay's pedal moves ("pedal feeds the
 Delay input"); 8002 is what 36 Pedal Reverb's pedal moves ("controls the level
 of the Reverb"); 121's crossfade moves 5000 and 8000, the two Mixes.
 
+**On the LCD** a linked parameter shows ■ before its value, and the value is
+the stored one: card 2-12 links Ext 1 (source 1) to 5001 and its
+Delay page shows "IN LEVEL ■ -15 dB", the stored byte; card 2-40 links 5000
+and shows "MIX LEVEL ■16 %"; card 2-89 links LFO 1 (13) to 5416 and its
+One-tap Delay page shows "PAN ■0", so 5416 is the One-tap's Pan (it is also
+linked in Stereo, Dual and Quad-tap presets, maybe a different parameter there). ROM 66 links 2500 and 2502 and shows
+■ on its Phaser SPEED and DEPTH (the first and third rows of the page). The editor reads the targets (`Preset.linkTargets()`) and draws
+the same ■ on its Edit page for parameters with a known ID: Mix, In and Out
+Level of every block (n = 0, 1, 2), the One-tap PAN (5416), the Phaser SPEED
+and DEPTH (2500, 2502), the Resonance LOCUT FR. and HICUT FR. (2201, 2203: the
+bytes 0x187 and 0x189, so these IDs count bytes from 0x186, as the Phaser's)
+and the Formant AGE/SEX and RESONANCE (2413, 2415; 2414 is Sweep).
+
 From 100 up, the hundreds digit is a parameter group. For Filters, Pan+Trem
 and Chorus it is **sub-algorithm byte + 1** in every link: Filters 1
 Resonance 2201/2203, 2 Wah-Wah 2300, 3 Formant 2413/2414, 4 Phaser 2500/2502;
@@ -182,7 +199,7 @@ presets link exactly one matching ID:
 | 2000 | Filters Mix | "Pedal > Fil Phaser Mix" (3-13) |
 | 2203 | Resonance hi cut frequency | "Ext 1 > Fil Res hi cut freq" (2-18) |
 | 2300 | Wah-Wah frequency | "Env > Wah Wah Filter Freq" (3-6, 3-10, 3-21) |
-| 2413, 2414, 2415 | Formant Age/Sex, Sweep, Resonance | "Formant Resonance, Sweep & Age/Sex" (3-1); "Formant Age/Sex, Sweep" (1-71, 2-66); "Env > Formant Sweep" (2-97, 3-40) |
+| 2413, 2414, 2415 | Formant Age/Sex, Sweep, Resonance (2414 = Sweep: 2-97 and 3-40 link only it; ROMs 157/176 show ■ on AGE/SEX) | "Formant Resonance, Sweep & Age/Sex" (3-1); "Formant Age/Sex, Sweep" (1-71, 2-66); "Env > Formant Sweep" (2-97, 3-40) |
 | 2500 | Phaser Speed | "Pedal > Filter Phaser Speed" (3-11, 3-14) |
 | 3400 | Surround Panner Speed | "Pedal > Surround Pan speed" (1-56) |
 | 4000 | Pitch Mix | "Ext 1 > Pit 2Voice Mix Level" (3-32), "Mix level of Pitch" (1-6) |
@@ -200,9 +217,14 @@ presets link exactly one matching ID:
 in the card manual all have an Ext 1 link, except 2-98, 2-99, 3-8 and 3-10.
 
 **Values.** Most parameters are single bytes, signed where needed (`FE` =
-−2, `CE` = −50, as in pan pairs `32 CE` = +50 / −50). Some are 16-bit
-little-endian, such as the filter frequencies at `0x18A`, `0x18E`, `0x192`
-and `0x196`: `6D 03` = 877.
+−2, `CE` = −50, as in pan pairs `32 CE` = +50 / −50). 16-bit values are
+stored **high byte first**: the One-tap Delay TIME at `0x1E2` (`01 36` = 310
+ms; One-tap presets span 0–1480 ms, the manual's range) and the Fixed 1
+Voice PITCH at `0x1C6` (`FB 50` = −1200 cents, signed; presets span ±1200).
+Read low byte first, the Delay times come out wrong (ROM 3's fourth tap
+would be 144 ms instead of 400). The Filters bytes at `0x18A`, `0x18E`,
+`0x192`, `0x196` look like 16-bit frequencies too; their pairing isn't
+confirmed.
 
 **Unused blocks are not reliable.** ROM 1 here and User 1 of samples A–D are
 both "Mono Reverb" copied from ROM. They differ in six bytes, `0x1EE`–`0x1F3`

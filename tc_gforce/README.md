@@ -126,8 +126,8 @@ A faulty transfer can leave the User bank empty, so keep the backup.
 |---|---|
 | RECALL | as on the unit (manual p.17): PARAMETER moves the cursor between SELECT, BANK and PRESET (its label is inverted); VALUE changes that field (BANK switches ROM / USER / CARD 1–6, PRESET previews); ENTER recalls on the G-Force (a User preset is also loaded into the edit buffer). The SELECT grid shows ALL and the blocks the preset uses, at the unit's fixed places (CPR FIL / PAN PIT DLY / DRV CHO REV): from the data for User presets, from the ROM dumps for ROM presets (all 225), blank for card presets. SELECT stays on ALL: partial recall is on the unit only |
 | STORE | VALUE chooses the target slot, ENTER stores the edit buffer there |
-| EFFECTS | the Effects display, drawn like the unit's: "Eff." with the MIX / EDIT / ROUTING / LAYOUT tabs, the In and OUT bars and the edited User preset's block diagram (CPR, FIL, PAN, PIT, DLY, DRV, CHO, REV boxes, as named on the unit, wired through the 8 × 4 routing grid). ◄ ► switch EDIT and ROUTING (MIX and LAYOUT are on the unit only). On EDIT, PARAMETER moves the cursor from block to block; on ROUTING, over every cell. The value strip names the cell, its block and its sub-algorithm. ENTER on a block opens its data at the sub-algorithm byte: there PARAMETER moves through the bytes, VALUE changes them, and EXIT goes back to the diagram. The routing itself is read-only: change it on the unit |
-| GATE … REVERB | step through that block's decoded parameters: its own first (COMPRESS: THRESHOLD, RATIO, KNEE MODE, RELEASE, IN LEVEL, OUT LEVEL; REVERB: DECAY TIME), then GLOBAL for every effect block (MIX LEVEL, IN LEVEL, OUT LEVEL where the block has them, MUTE MODE). GATE is not decoded yet. |
+| EFFECTS | the Effects display, drawn like the unit's: "Eff." with the MIX / EDIT / ROUTING / LAYOUT tabs, the In and OUT bars and the edited User preset's block diagram (CPR, FIL, PAN, PIT, DLY, DRV, CHO, REV boxes, as named on the unit, wired through the 8 × 4 routing grid). ◄ ► switch EDIT and ROUTING (MIX and LAYOUT are on the unit only). On EDIT, PARAMETER moves the cursor from block to block; on ROUTING, over every cell. The value strip names the cell, its block and its sub-algorithm. ENTER on a block opens its Edit page, laid out like the unit's: the title (e.g. REVERB - ADVANCED), the decoded parameters under the unit's section headings (for the Advanced Reverb: MASTER SECTION, ROOM SETTINGS, DECAY SETTINGS, GLOBAL), and a bar with the value under it. PARAMETER moves through the parameters, VALUE changes them, and EXIT goes back to the diagram. A block with nothing decoded yet opens on its raw bytes (PRESET DATA - RAW), as do clicks on undecoded bytes in the PRESET DATA grid. The routing itself is read-only: change it on the unit |
+| GATE … REVERB | step through that block's decoded parameters: its own first, then GLOBAL (MIX LEVEL, IN LEVEL, OUT LEVEL where the block has them, MUTE MODE). GATE: MODE, THRESHOLD, MAX DAMPING, REL.RATE, LEVEL. COMPRESS: THRESHOLD, RATIO, KNEE MODE, RELEASE, IN and OUT LEVEL. Some depend on the sub-algorithm and appear only there: DELAY One-tap TIME, TEMPO, FEEDBACK, PAN, LOCUT, HICUT; PITCH Fixed 1 Voice PITCH; PAN+TREM Simple Tremolo and Simple Panner SPEED, TEMPO (and the Tremolo's DEPTH); DELAY Dual LINE 1/2 TIME and TEMPO; PITCH Dual Detune VOICE1/2 DELAY; CHORUS Classic and Advanced SPEED, TEMPO, DEPTH, and Advanced's DELAY, GOLDEN RATIO, PHASE REVERSE, CURVE, PHASE; COMPRESS KNEE MODE and RELEASE only in Advanced; REVERB Advanced: all fifteen of its page (ROOM TYPE … DIFFUSE, with DECAY TIME). |
 | I/O SETUP | MIDI, CONTROL and AUDIO pages (◄ ►), as on the unit. The MIDI page shows and edits the editor's settings (Basic channel, Program change, Bank selection, Bank size, SysEx ID), which must match the unit's; Mapping mode must be External on the unit. CONTROL and AUDIO are listed but set on the unit only |
 | UTILITY | CONFIG and BILLBOARD pages (◄ ►), as on the unit. In CONFIG, USER BANK TO MIDI (the editor receives) and MIDI TO USER BANK (the editor sends) run with ENTER; the other items are on the unit only. Tuner MIDI Out must be Off on the unit for dumps (manual p.29) |
 | ◄ ► | switch the pages of Effects (EDIT, ROUTING), I/O Setup and Utility; elsewhere they step like PARAMETER |
@@ -213,6 +213,59 @@ simulated unit, not against the G-Force receiving data.
    out Mix for the Compressor (its page has none) and Out Level for Pan+Trem
    and Chorus (always 0). The level ranges (−40 … 0 dB) are not in the
    manual.
+14. **Single-step edits**: `docs/samples/gforce-edit-parameters-1.syx` is ROM 1–3 with
+   every parameter moved one step and photographed, so each changed byte is
+   one parameter. The Noise Gate, the One-tap Delay's Time, Feedback and Pan,
+   the Advanced Chorus's Depth, Delay, Golden Ratio, Phase Reverse, Curve and
+   Phase, and the whole Advanced Reverb come from it (with
+   `gforce-edit-parameters-2.syx`, which gave the Reverb distinct values). These
+   bytes mean other things in other sub-algorithms, so the editor shows them
+   only in the sub-algorithm they were seen in. Value names beyond the ones
+   seen (Curve, Room Size, the colors, Ratio) show with a `?`; all 17 Tempo
+   values are placed (photos and the edit-parameters-3/3-3 dumps). LFO Speed (Chorus, Pan+Trem, Phaser) uses the
+   unit's whole table, 104 steps from 0.050 to 19.2 Hz, read from a video of
+   the SPEED values, plus OFF below them, stored as FF (-1). The Delay cut filters
+   use 10 Hz × 1600^(n/100) (10 Hz … 16 kHz) with three significant digits,
+   which reproduces all sixteen steps photographed. The Output page is global and not in the dump.
+   16-bit values (Delay Time, Pitch) are stored high byte first: that
+   reading gives the One-tap's 0–1480 ms and the Pitch's ±1200 cents across
+   all presets, and photos of ROM 3 and ROM 11 match it.
+15. **Photos of single presets** (`docs/PHOTO_CHECKLIST.md`): later Edit
+   pages were read from photos of ROM and G-Card presets against their
+   dumps. Card 1-76 placed the Phaser (Speed, Tempo, Depth, Order), the
+   Advanced Tremolo's Curve, Fixed 2 Voice and the Stereo Delay, and showed
+   the Chorus Curve and Phase bytes were swapped. The Stereo Delay's Tempo byte `0x1E4` is
+   confirmed by ROM 196 (1/4).
+   Card 1-83 placed the Formant (vowels Start/Thru/End, Resonance,
+   Age/Sex), the Quad-tap's four times, the Simple Reverb (Type, Decay, Pre
+   Delay, Level, Color) and showed the Chorus Delay is 16-bit (`0x242`).
+   Nine vowels are named (HEAT, HIT, HAD, BUT, FATHER, ALL, BOOT, FOOT,
+   BIRD, HEAD: all ten, from cards 1-83, 1-78 and ROMs 157, 176). The Simple Reverb types
+   follow the manual's list, which the ROM preset names fit; ROOM, CLUB,
+   CHURCH, CATHEDRAL, GRAND HALL, FAST and SLOW DECAY, PLATE and
+   SPRING, HALL: all ten are seen. The Quad-tap's per-tap Tempo
+   bytes `0x1EA`–`0x1ED` are inferred.
+   Card 1-89 placed the Advanced Flanger (Feedback, Cross Feed) and the
+   Surround Panner (Curve SINE = 2, Pulse Width), confirming one LFO curve
+   table. The Advanced Tremolo's Pulse Width at `0x1AC` is inferred from it.
+   Card 2-1 placed the Resonance filter (Type, Locut/Hicut Fr., Lo/Hi
+   Reson.) and Intelligent 2 Voice (Key, Scale, Mode, Voice 1/2), and showed
+   Ratio 15 as INFINITE:1. Card 1-97 later showed Lo Reson. is `0x188` and
+   Hicut Fr. `0x189`, with sweeps 20 Hz × 250^(n/100) and 150 Hz × 100^(n/100)
+   (cards 2-2 and ROM 173 then showed 182 Hz, 3.77 kHz, 492 Hz and 9.04
+   kHz, as predicted). Guesses: Key/Scale/Mode bytes
+   (all 0 on the photo; card 1-36 "E Dorian" fits Key 4, Scale 1), the
+   scale names after Ionian (mode order) and Voice values other than 8.
+16. **■ on linked parameters**: as on the unit, the Edit page puts ■ before
+   a value that a modifier link moves (photos of cards 2-1, 2-12, 2-40, 2-89,
+   ROMs 66, 157, 176). Only parameters whose link ID is known get it: every
+   block's Mix, In and Out Level, One-tap PAN (5416), Phaser SPEED/DEPTH,
+   Resonance LOCUT/HICUT FR. and Formant AGE/SEX/RESONANCE. 5416 also
+   appears in Stereo, Dual and Quad-tap presets, where it may mean another
+   parameter.
+17. **Dual Two-tap**: cards 2-45 and ROM 157 place both DELAY LINE pages
+   (Time 1/2, Tempo 1/2, Feedback 1), line by line; Feedback 2 and the
+   rest of each line aren't placed yet.
 
 Bytes the editor doesn't understand are kept exactly as received. A received
 bank that is sent back unedited is byte-identical.
